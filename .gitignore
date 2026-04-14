@@ -1,0 +1,16 @@
+# ambiente virtual
+.venv/
+env/
+
+# python
+__pycache__/
+*.pyc
+
+# dados locais
+data/*.json
+
+# logs
+logs/
+
+# playwright
+playwright-report/
