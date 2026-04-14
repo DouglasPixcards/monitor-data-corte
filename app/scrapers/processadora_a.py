@@ -5,7 +5,7 @@ def coletar():
         "dados": [
             {
                 "convenio": "123",
-                "data_corte": "2026-04-21"
+                "data_corte": "2026-04-20"
             },
             {
                 "convenio": "456",

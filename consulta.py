@@ -51,3 +51,4 @@ with sync_playwright() as pw:
 
     navegador.close()
 
+#qualquer caramba
