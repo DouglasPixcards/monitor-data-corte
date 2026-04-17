@@ -14,3 +14,16 @@ logs/
 
 # playwright
 playwright-report/
+
+
+.env
+__pycache__/
+*.pyc
+*.json
+
+*profiles/
+
+
+*debug/
+
+*perfil_facil/
