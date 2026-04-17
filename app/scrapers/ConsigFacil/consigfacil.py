@@ -4,6 +4,7 @@ from typing import Any
 
 from app.scrapers.base_scraper import BaseScraper
 from app.auth.strategies.certificate_auth import CertificateAuthStrategy
+import re
 
 
 class ConsigFacilScraper(BaseScraper):
@@ -26,8 +27,6 @@ class ConsigFacilScraper(BaseScraper):
         url_atual = self.page.url
         conteudo = self.page.locator("body").inner_text()
 
-        print(conteudo)
-
         if "pagina_consignatario.php" not in url_atual:
             raise RuntimeError(f"Acesso não validado. URL atual: {url_atual}")
 
@@ -40,7 +39,38 @@ class ConsigFacilScraper(BaseScraper):
 
         texto = self.page.locator("body").inner_text()
 
-        return [{"texto_bruto": texto}]
+        if "Datas de Fechamento" not in texto:
+            return []
+
+        trecho = texto.split("Datas de Fechamento", 1)[1]
+        linhas = [linha.strip() for linha in trecho.splitlines() if linha.strip()]
+
+        resultados = []
+
+        for linha in linhas:
+            if linha == "Folha\tMês atual\tData de fechamento":
+                continue
+            if linha == "Ver outros meses":
+                continue
+            if linha == "Algumas novidades para você":
+                continue
+
+            partes = [p.strip() for p in linha.split("\t") if p.strip()]
+
+            if len(partes) >= 3:
+                convenio = partes[0]
+                mes_atual = partes[1]
+                data_corte = partes[2]
+
+                resultados.append(
+                    {
+                        "convenio": convenio,
+                        "mes_atual": mes_atual,
+                        "data_corte": data_corte,
+                    }
+                )
+
+        return resultados
     
 
 def coletar() -> dict[str, Any]:
