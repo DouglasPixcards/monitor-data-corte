@@ -1,0 +1,20 @@
+{
+  "processadoras": {
+    "consigfacil": {
+      "auth_type": "route_certificate",
+      "url_template": "https://www.faciltecnologia.com.br/consigfacil/{slug}/validar_certificado_cliente.php",
+      "uses_chrome_channel": true
+    },
+    "safeconsig": {
+      "auth_type": "login_password",
+      "uses_chrome_channel": true
+    }
+  },
+  "convenios": {
+    "belterra": {
+      "nome": "Belterra",
+      "processadora": "consigfacil",
+      "slug": "belterra"
+    }
+  }
+}

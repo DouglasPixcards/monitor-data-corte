@@ -19,7 +19,6 @@ playwright-report/
 .env
 __pycache__/
 *.pyc
-*.json
 
 *profiles/
 

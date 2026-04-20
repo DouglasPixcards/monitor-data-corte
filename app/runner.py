@@ -1,4 +1,4 @@
-from app.scrapers.ConsigFacil.consigfacil import coletar
+from app.services.coleta_service import executar_coleta
 from app.services.storage import (
     carregar_historico,
     salvar_historico,
@@ -10,7 +10,7 @@ from app.services.alert import gerar_mensagem_alerta
 
 def run() -> None:
     historico = carregar_historico()
-    resultado = coletar()
+    resultado = executar_coleta("belterra")
 
     print("\n=== RESULTADO DA COLETA ===")
     print(resultado)
