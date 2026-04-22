@@ -11,49 +11,53 @@ class ConsigFacilScraper(BaseScraper):
             raise RuntimeError("Page não inicializada.")
 
         url_atual = self.page.url
-        conteudo = self.page.locator("body").inner_text()
 
         if "pagina_consignatario.php" not in url_atual:
             raise RuntimeError(f"Acesso não validado. URL atual: {url_atual}")
-
-        if "Datas de Fechamento" not in conteudo:
-            raise RuntimeError("Acesso validado parcialmente, mas bloco esperado não foi encontrado.")
 
     def collect(self) -> list[dict[str, Any]]:
         if self.page is None:
             raise RuntimeError("Page não inicializada.")
 
-        texto = self.page.locator("body").inner_text()
+        ultimo_erro = None
 
-        if "Datas de Fechamento" not in texto:
-            return []
+        for tentativa in range(3):
+            try:
+                tabela = self.page.locator("table.table.table-consig-info").first
+                tabela.wait_for(state="visible", timeout=10000)
 
-        trecho = texto.split("Datas de Fechamento", 1)[1]
-        linhas = [linha.strip() for linha in trecho.splitlines() if linha.strip()]
+                linhas = tabela.locator("tbody tr")
+                quantidade_linhas = linhas.count()
 
-        resultados: list[dict[str, Any]] = []
+                resultados: list[dict[str, Any]] = []
 
-        for linha in linhas:
-            if linha == "Folha\tMês atual\tData de fechamento":
-                continue
-            if linha == "Ver outros meses":
-                continue
-            if linha == "Algumas novidades para você":
-                continue
+                for i in range(quantidade_linhas):
+                    linha = linhas.nth(i)
+                    colunas = linha.locator("td")
+                    quantidade_colunas = colunas.count()
 
-            partes = [p.strip() for p in linha.split("\t") if p.strip()]
+                    if quantidade_colunas < 3:
+                        continue
 
-            if len(partes) >= 3:
-                convenio = partes[0]
-                mes_atual = partes[1]
-                data_corte = partes[2]
+                    folha = colunas.nth(0).inner_text().strip()
+                    mes_atual = colunas.nth(1).inner_text().strip()
+                    data_corte = colunas.nth(2).inner_text().strip()
 
-                resultados.append(
-                    {
-                        "convenio": convenio,
-                        "mes_atual": mes_atual,
-                        "data_corte": data_corte,
-                    }
-                )
+                    if not folha and not mes_atual and not data_corte:
+                        continue
 
-        return resultados
+                    resultados.append(
+                        {
+                            "folha": folha,
+                            "mes_atual": mes_atual,
+                            "data_corte": data_corte,
+                        }
+                    )
+
+                return resultados
+
+            except Exception as e:
+                ultimo_erro = e
+                self.page.wait_for_timeout(2000)
+
+        raise RuntimeError(f"Falha ao coletar dados da tabela de fechamento: {ultimo_erro}")

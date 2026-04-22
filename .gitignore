@@ -7,7 +7,7 @@ __pycache__/
 *.pyc
 
 # dados locais
-data/*.json
+*data/
 
 # logs
 logs/
@@ -26,3 +26,4 @@ __pycache__/
 *debug/
 
 *perfil_facil/
+

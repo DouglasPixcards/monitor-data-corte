@@ -15,6 +15,51 @@
       "nome": "Belterra",
       "processadora": "consigfacil",
       "slug": "belterra"
+    },
+    "maranhao": {
+      "nome": "Maranhão",
+      "processadora": "consigfacil",
+      "slug": "maranhao"
+    },
+    "santarem": {
+      "nome": "Santarém",
+      "processadora": "consigfacil",
+      "slug": "santarem"
+    },
+    "ipatingamg": {
+      "nome": "Ipatinga MG",
+      "processadora": "consigfacil",
+      "slug": "ipatingamg"
+    },
+    "cuiaba": {
+      "nome": "Cuiabá",
+      "processadora": "consigfacil",
+      "slug": "cuiaba"
+    },
+    "portovelho": {
+      "nome": "Porto Velho",
+      "processadora": "consigfacil",
+      "slug": "portovelho"
+    },
+    "teresina": {
+      "nome": "Teresina",
+      "processadora": "consigfacil",
+      "slug": "teresina"
+    },
+    "itaituba": {
+      "nome": "Itaituba",
+      "processadora": "consigfacil",
+      "slug": "itaituba"
+    },
+    "mt": {
+      "nome": "Portal do Consignado MT",
+      "processadora": "consigfacil",
+      "base_url": "https://portaldoconsignado.mt.gov.br/"
+    },
+    "piaui": {
+      "nome": "ConsigFácil PI",
+      "processadora": "consigfacil",
+      "base_url": "https://consigfacil.sead.pi.gov.br/index.php"
     }
   }
 }

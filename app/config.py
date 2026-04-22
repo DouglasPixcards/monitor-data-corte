@@ -18,7 +18,7 @@ class Settings:
     CONSIGFACIL_BELTERRA_USER = os.getenv("CONSIGFACIL_BELTERRA_USER", "")
     CONSIGFACIL_BELTERRA_PASSWORD = os.getenv("CONSIGFACIL_BELTERRA_PASSWORD", "")
     HEADLESS = _get_bool(os.getenv("HEADLESS"), True)
-    TIMEOUT_SECONDS = int(os.getenv("TIMEOUT_SECONDS", "30000"))
+    TIMEOUT_SECONDS = int(os.getenv("TIMEOUT_SECONDS", "180000"))
 
 
 settings = Settings()

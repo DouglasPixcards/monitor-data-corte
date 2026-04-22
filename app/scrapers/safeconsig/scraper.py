@@ -13,7 +13,7 @@ class SafeConsigScraper(BaseScraper):
             processadora="safeconsig",
             base_url=settings.SAFECONSIG_CEARA_URL,
             headless=False,
-            timeout=settings.TIMEOUT_SECONDS * 1000,
+            timeout=settings.TIMEOUT_SECONDS,
             channel="chrome",
         )
         self.username = settings.SAFECONSIG_CEARA_USER
