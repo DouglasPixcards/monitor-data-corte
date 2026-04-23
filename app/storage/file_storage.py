@@ -57,6 +57,23 @@ class FileStorageRepository(StorageRepository):
     def load_latest_snapshot(self, processadora: str) -> dict | None:
         return self._read_json(self._latest_path(processadora))
 
+    def load_latest_execution(self, processadora: str) -> dict | None:
+        executions_dir = self._executions_dir(processadora)
+
+        if not executions_dir.exists():
+            return None
+
+        arquivos = sorted(
+            executions_dir.glob("*.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+
+        if not arquivos:
+            return None
+
+        return self._read_json(arquivos[0])
+
     def save_execution(self, processadora: str, execution: dict) -> None:
         self._ensure_dirs(processadora)
 
@@ -98,3 +115,24 @@ class FileStorageRepository(StorageRepository):
             with open(path, "a", encoding="utf-8") as arquivo:
                 arquivo.write(json.dumps(event, ensure_ascii=False))
                 arquivo.write("\n")
+
+    def load_all_executions(self, processadora: str) -> list[dict]:
+        executions_dir = self._executions_dir(processadora)
+
+        if not executions_dir.exists():
+            return []
+
+        arquivos = sorted(
+            executions_dir.glob("*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+
+        resultados: list[dict] = []
+
+        for path in arquivos:
+            conteudo = self._read_json(path)
+            if conteudo:
+                resultados.append(conteudo)
+
+        return resultados

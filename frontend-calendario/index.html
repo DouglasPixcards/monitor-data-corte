@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monitor de Calendário Consignados</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Monitor de Calendário de Processamento</h1>
+      <p>Visualização simples da coleta de datas de corte por convênio/processadora.</p>
+    </div>
+
+    <div class="summary-grid">
+        <div class="card">
+        <div class="card-title">Processadora</div>
+        <select id="select-processadora">
+            <option value="consigfacil">ConsigFácil</option>
+            <option value="safeconsig">SafeConsig</option>
+        </select>
+        </div>
+
+      <div class="card">
+        <div class="card-title">Executado em</div>
+        <div class="card-value card-value-small" id="executado-em">-</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Total de convênios</div>
+        <div class="card-value" id="total-convenios">0</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Sucesso</div>
+        <div class="card-value" id="success-count">0</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Erros</div>
+        <div class="card-value" id="error-count">0</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Registros totais</div>
+        <div class="card-value" id="records-count">0</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+        <input
+            type="text"
+            id="filtro-convenio"
+            placeholder="Filtrar por convênio ou folha..."
+        />
+        <button id="btn-recarregar">Recarregar</button>
+        <button id="btn-coletar">Coletar agora</button>
+    </div>
+
+    <div class="table-wrapper">
+      <div class="table-header">
+        <h2>Resultados da coleta</h2>
+        <p>Uma linha por registro retornado pelo portal.</p>
+      </div>
+
+      <div class="status-box" id="status-box">Carregando dados...</div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Convênio</th>
+              <th>Status</th>
+              <th>Folha</th>
+              <th>Mês atual</th>
+              <th>Data de corte</th>
+              <th>Erro</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      Observação: esta tela mostra a coleta bruta do portal, sem unificação automática.
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

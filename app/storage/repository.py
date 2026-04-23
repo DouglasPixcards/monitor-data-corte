@@ -9,6 +9,10 @@ class StorageRepository(ABC):
         pass
 
     @abstractmethod
+    def load_latest_execution(self, processadora: str) -> dict | None:
+        pass
+
+    @abstractmethod
     def save_execution(self, processadora: str, execution: dict) -> None:
         pass
 
@@ -22,4 +26,8 @@ class StorageRepository(ABC):
 
     @abstractmethod
     def append_events(self, processadora: str, events: list[dict]) -> None:
+        pass
+
+    @abstractmethod
+    def load_all_executions(self, processadora: str) -> list[dict]:
         pass
