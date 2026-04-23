@@ -12,7 +12,7 @@ class FileStorageRepository(StorageRepository):
         self._base_path = Path(base_path)
 
     def _processadora_dir(self, processadora: str) -> Path:
-        return self._base_path / "processadoras" / processadora.lower()
+        return self._base_path / "processadoras" / processadora.lower().strip()
 
     def _latest_path(self, processadora: str) -> Path:
         return self._processadora_dir(processadora) / "latest.json"
@@ -35,8 +35,12 @@ class FileStorageRepository(StorageRepository):
     def _write_json(self, path: Path, data: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, "w", encoding="utf-8") as arquivo:
+        temp_path = path.with_suffix(path.suffix + ".tmp")
+
+        with open(temp_path, "w", encoding="utf-8") as arquivo:
             json.dump(data, arquivo, ensure_ascii=False, indent=4)
+
+        temp_path.replace(path)
 
     def _read_json(self, path: Path) -> dict[str, Any] | None:
         if not path.exists():

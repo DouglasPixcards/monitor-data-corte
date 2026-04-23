@@ -1,54 +1,61 @@
-def comparar(historico: dict, atual: dict) -> dict:
+from __future__ import annotations
+
+
+def _gerar_chave_registro(item: dict) -> str:
+    folha = str(item.get("folha", "")).strip()
+    mes_atual = str(item.get("mes_atual", "")).strip()
+    return f"{folha}|{mes_atual}"
+
+
+def comparar(dados_anteriores: list[dict], dados_atuais: list[dict]) -> dict:
     resultado = {
         "mudancas": [],
         "novos": [],
         "removidos": [],
-        "erros": []
+        "erros": [],
     }
 
-    # Se scraper falhou
-    if atual.get("status") != "ok":
-        resultado["erros"].append({
-            "processadora": atual.get("processadora"),
-            "erro": atual.get("erro")
-        })
-        return resultado
+    mapa_anterior = {
+        _gerar_chave_registro(item): item
+        for item in dados_anteriores
+    }
 
-    dados_atuais = {d["convenio"]: d["data_corte"] for d in atual.get("dados", [])}
+    mapa_atual = {
+        _gerar_chave_registro(item): item
+        for item in dados_atuais
+    }
 
-    # Se não tinha histórico ainda
-    if not historico:
-        for conv, data in dados_atuais.items():
+    for chave, item_atual in mapa_atual.items():
+        if chave not in mapa_anterior:
             resultado["novos"].append({
-                "convenio": conv,
-                "data_corte": data
+                "chave": chave,
+                "folha": item_atual.get("folha"),
+                "mes_atual": item_atual.get("mes_atual"),
+                "data_corte": item_atual.get("data_corte"),
             })
-        return resultado
+            continue
 
-    dados_antigos = {d["convenio"]: d["data_corte"] for d in historico.get("dados", [])}
+        item_anterior = mapa_anterior[chave]
 
-    # Comparar mudanças e novos
-    for convenio, data_atual in dados_atuais.items():
-        if convenio not in dados_antigos:
-            resultado["novos"].append({
-                "convenio": convenio,
-                "data_corte": data_atual
+        data_corte_anterior = item_anterior.get("data_corte")
+        data_corte_atual = item_atual.get("data_corte")
+
+        if data_corte_anterior != data_corte_atual:
+            resultado["mudancas"].append({
+                "chave": chave,
+                "folha": item_atual.get("folha"),
+                "mes_atual": item_atual.get("mes_atual"),
+                "antes": data_corte_anterior,
+                "depois": data_corte_atual,
             })
-        else:
-            data_antiga = dados_antigos[convenio]
-            if data_antiga != data_atual:
-                resultado["mudancas"].append({
-                    "convenio": convenio,
-                    "antes": data_antiga,
-                    "depois": data_atual
-                })
 
-    # Verificar removidos
-    for convenio in dados_antigos:
-        if convenio not in dados_atuais:
+    for chave, item_anterior in mapa_anterior.items():
+        if chave not in mapa_atual:
             resultado["removidos"].append({
-                "convenio": convenio,
-                "data_corte": dados_antigos[convenio]
+                "chave": chave,
+                "folha": item_anterior.get("folha"),
+                "mes_atual": item_anterior.get("mes_atual"),
+                "data_corte": item_anterior.get("data_corte"),
             })
 
     return resultado

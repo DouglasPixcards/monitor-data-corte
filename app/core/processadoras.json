@@ -54,12 +54,12 @@
     "mt": {
       "nome": "Portal do Consignado MT",
       "processadora": "consigfacil",
-      "base_url": "https://portaldoconsignado.mt.gov.br/"
+      "base_url": "https://portaldoconsignado.mt.gov.br/validar_certificado_cliente.php?novo_layout=On"
     },
     "piaui": {
       "nome": "ConsigFácil PI",
       "processadora": "consigfacil",
-      "base_url": "https://consigfacil.sead.pi.gov.br/index.php"
+      "base_url": "https://consigfacil.sead.pi.gov.br/validar_certificado_cliente.php?novo_layout=On"
     }
   }
 }
