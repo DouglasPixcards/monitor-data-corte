@@ -2,7 +2,7 @@ from app.services.collector_service import executar_coleta
 
 
 def run() -> None:
-    processadora = "consigfacil"
+    processadora = "consigup"
     executar_coleta(processadora)
 
 

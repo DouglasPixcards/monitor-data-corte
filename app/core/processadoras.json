@@ -8,6 +8,27 @@
     "safeconsig": {
       "auth_type": "login_password",
       "uses_chrome_channel": true
+    },
+    "consigup": {
+      "auth_type": "login_password",
+      "uses_chrome_channel": false,
+      "selectors": {
+        "username": {
+          "type": "role",
+          "role": "textbox",
+          "name": "Usuário"
+        },
+        "password": {
+          "type": "role",
+          "role": "textbox",
+          "name": "Senha"
+        },
+        "submit": {
+          "type": "role",
+          "role": "button",
+          "name": "Entrar"
+        }
+      }
     }
   },
   "convenios": {
@@ -60,6 +81,15 @@
       "nome": "ConsigFácil PI",
       "processadora": "consigfacil",
       "base_url": "https://consigfacil.sead.pi.gov.br/validar_certificado_cliente.php?novo_layout=On"
+    },
+    "muana": {
+      "nome": "PREF DE MUANA - PA",
+      "processadora": "consigup",
+      "credentials": {
+        "username": "SEU_USER",
+        "password": "SUA_SENHA"
+      },
+      "base_url": "https://sistema.consigup.com.br/Login.aspx"
     }
   }
 }
