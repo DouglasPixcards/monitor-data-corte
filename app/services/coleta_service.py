@@ -1,23 +1,25 @@
 from __future__ import annotations
 
 from app.auth.certificate_auth import CertificateAuthStrategy
-# from app.auth.login_password_auth import LoginPasswordAuthStrategy
+from app.auth.user_pass_auth import LoginPasswordAuthStrategy
 from app.core.loader import load_processadoras_config
 from app.scrapers.consigfacil.scraper import ConsigFacilScraper
 from app.scrapers.safeconsig.scraper import SafeConsigScraper
+from app.scrapers.consigup.scraper import ConsigUpScraper
 
 
-def build_auth_strategy(processadora_config: dict):
+def build_auth_strategy(processadora_config: dict, convenio_config: dict):
     auth_type = processadora_config["auth_type"]
 
     if auth_type == "route_certificate":
         return CertificateAuthStrategy()
 
     if auth_type == "login_password":
-        raise NotImplementedError(
-            "Estratégia de autenticação por login e senha ainda não implementada."
+        return LoginPasswordAuthStrategy(
+            username=convenio_config["credentials"]["username"],
+            password=convenio_config["credentials"]["password"],
+            selectors=processadora_config["selectors"],
         )
-        # return LoginPasswordAuthStrategy(username="", password="")
 
     raise ValueError(f"Tipo de autenticação não suportado: {auth_type}")
 
@@ -41,6 +43,13 @@ def build_scraper(
             convenio_config=convenio_config,
             auth_strategy=auth_strategy,
         )
+    
+    if processadora_key == "consigup":
+        return ConsigUpScraper(
+            processadora_config=processadora_config,
+            convenio_config=convenio_config,
+            auth_strategy=auth_strategy,
+        )
 
     raise ValueError(f"Scraper não suportado para processadora: {processadora_key}")
 
@@ -52,7 +61,7 @@ def executar_coleta(convenio_key: str) -> dict:
     processadora_key = convenio_config["processadora"]
     processadora_config = config["processadoras"][processadora_key]
 
-    auth_strategy = build_auth_strategy(processadora_config)
+    auth_strategy = build_auth_strategy(processadora_config, convenio_config)
     scraper = build_scraper(
         processadora_key=processadora_key,
         processadora_config=processadora_config,
@@ -118,7 +127,7 @@ def executar_coleta_lote(processadora_key: str) -> dict:
     records_consolidados: list[dict] = []
 
     for convenio_key, convenio_config in convenios_da_processadora.items():
-        auth_strategy = build_auth_strategy(processadora_config)
+        auth_strategy = build_auth_strategy(processadora_config, convenio_config)
 
         scraper = build_scraper(
             processadora_key=processadora_key,
