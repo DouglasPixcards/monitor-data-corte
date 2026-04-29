@@ -1,138 +1,92 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any
 
-from app.storage.repository import StorageRepository
+from app.core.enums import EventoTipo
+from app.core.models import Execucao, DadoCorte, Evento
+from app.storage.repository import (
+    ExecucaoRepository,
+    DadosCorteRepository,
+    EventoRepository,
+)
 
 
-class FileStorageRepository(StorageRepository):
-    def __init__(self, base_path: str):
-        self._base_path = Path(base_path)
+class FileExecucaoRepository(ExecucaoRepository):
+    def __init__(self, base_path: str) -> None:
+        self._base = Path(base_path)
 
-    def _processadora_dir(self, processadora: str) -> Path:
-        return self._base_path / "processadoras" / processadora.lower().strip()
+    def _dir(self, processadora: str) -> Path:
+        return self._base / "processadoras" / processadora / "execucoes"
 
-    def _latest_path(self, processadora: str) -> Path:
-        return self._processadora_dir(processadora) / "latest.json"
-
-    def _snapshots_dir(self, processadora: str) -> Path:
-        return self._processadora_dir(processadora) / "snapshots"
-
-    def _executions_dir(self, processadora: str) -> Path:
-        return self._processadora_dir(processadora) / "executions"
-
-    def _events_dir(self, processadora: str) -> Path:
-        return self._processadora_dir(processadora) / "events"
-
-    def _ensure_dirs(self, processadora: str) -> None:
-        self._processadora_dir(processadora).mkdir(parents=True, exist_ok=True)
-        self._snapshots_dir(processadora).mkdir(parents=True, exist_ok=True)
-        self._executions_dir(processadora).mkdir(parents=True, exist_ok=True)
-        self._events_dir(processadora).mkdir(parents=True, exist_ok=True)
-
-    def _write_json(self, path: Path, data: dict[str, Any]) -> None:
+    def salvar(self, execucao: Execucao) -> None:
+        path = self._dir(execucao.processadora) / f"{execucao.id}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(asdict(execucao), ensure_ascii=False), encoding="utf-8")
 
-        temp_path = path.with_suffix(path.suffix + ".tmp")
-
-        with open(temp_path, "w", encoding="utf-8") as arquivo:
-            json.dump(data, arquivo, ensure_ascii=False, indent=4)
-
-        temp_path.replace(path)
-
-    def _read_json(self, path: Path) -> dict[str, Any] | None:
-        if not path.exists():
-            return None
-
-        with open(path, "r", encoding="utf-8") as arquivo:
-            conteudo = arquivo.read().strip()
-
-        if not conteudo:
-            return None
-
-        return json.loads(conteudo)
-
-    def load_latest_snapshot(self, processadora: str) -> dict | None:
-        return self._read_json(self._latest_path(processadora))
-
-    def load_latest_execution(self, processadora: str) -> dict | None:
-        executions_dir = self._executions_dir(processadora)
-
-        if not executions_dir.exists():
-            return None
-
-        arquivos = sorted(
-            executions_dir.glob("*.json"),
-            key=lambda path: path.stat().st_mtime,
-            reverse=True,
-        )
-
-        if not arquivos:
-            return None
-
-        return self._read_json(arquivos[0])
-
-    def save_execution(self, processadora: str, execution: dict) -> None:
-        self._ensure_dirs(processadora)
-
-        execution_id = execution.get("execution_id")
-        if not execution_id:
-            raise ValueError("execution_id é obrigatório para salvar execution.")
-
-        path = self._executions_dir(processadora) / f"{execution_id}.json"
-        self._write_json(path, execution)
-
-    def save_snapshot(self, processadora: str, snapshot: dict) -> None:
-        self._ensure_dirs(processadora)
-
-        snapshot_id = snapshot.get("snapshot_id")
-        if not snapshot_id:
-            raise ValueError("snapshot_id é obrigatório para salvar snapshot.")
-
-        path = self._snapshots_dir(processadora) / f"{snapshot_id}.json"
-        self._write_json(path, snapshot)
-
-    def save_latest_snapshot(self, processadora: str, snapshot: dict) -> None:
-        self._ensure_dirs(processadora)
-        self._write_json(self._latest_path(processadora), snapshot)
-
-    def append_events(self, processadora: str, events: list[dict]) -> None:
-        if not events:
-            return
-
-        self._ensure_dirs(processadora)
-
-        for event in events:
-            detected_at = event.get("detected_at")
-            if not detected_at:
-                raise ValueError("detected_at é obrigatório para salvar evento.")
-
-            data_arquivo = detected_at[:10]
-            path = self._events_dir(processadora) / f"{data_arquivo}.jsonl"
-
-            with open(path, "a", encoding="utf-8") as arquivo:
-                arquivo.write(json.dumps(event, ensure_ascii=False))
-                arquivo.write("\n")
-
-    def load_all_executions(self, processadora: str) -> list[dict]:
-        executions_dir = self._executions_dir(processadora)
-
-        if not executions_dir.exists():
+    def listar(self, processadora: str) -> list[Execucao]:
+        d = self._dir(processadora)
+        if not d.exists():
             return []
+        execucoes = [
+            Execucao(**json.loads(arq.read_text(encoding="utf-8")))
+            for arq in d.glob("*.json")
+        ]
+        execucoes.sort(key=lambda e: e.executada_em, reverse=True)
+        return execucoes
 
-        arquivos = sorted(
-            executions_dir.glob("*.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
+    def buscar_ultima_ok(self, processadora: str) -> Execucao | None:
+        for e in self.listar(processadora):
+            if e.status == "ok":
+                return e
+        return None
 
-        resultados: list[dict] = []
 
-        for path in arquivos:
-            conteudo = self._read_json(path)
-            if conteudo:
-                resultados.append(conteudo)
+class FileDadosCorteRepository(DadosCorteRepository):
+    def __init__(self, base_path: str) -> None:
+        self._base = Path(base_path) / "dados_corte"
 
-        return resultados
+    def _path(self, execucao_id: str) -> Path:
+        return self._base / f"{execucao_id}.json"
+
+    def salvar_lote(self, dados: list[DadoCorte]) -> None:
+        if not dados:
+            return
+        groups: dict[str, list[dict]] = defaultdict(list)
+        for d in dados:
+            groups[d.execucao_id].append(asdict(d))
+        for execucao_id, records in groups.items():
+            path = self._path(execucao_id)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
+
+    def buscar_por_execucao(self, execucao_id: str) -> list[DadoCorte]:
+        path = self._path(execucao_id)
+        if not path.exists():
+            return []
+        records = json.loads(path.read_text(encoding="utf-8"))
+        return [DadoCorte(**r) for r in records]
+
+
+class FileEventoRepository(EventoRepository):
+    def __init__(self, base_path: str) -> None:
+        self._base = Path(base_path)
+
+    def _path(self, processadora: str, date: str) -> Path:
+        return self._base / "processadoras" / processadora / "eventos" / f"{date}.jsonl"
+
+    def salvar_lote(self, eventos: list[Evento]) -> None:
+        if not eventos:
+            return
+        groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
+        for e in eventos:
+            date = e.detectado_em[:10]
+            groups[(e.processadora, date)].append(asdict(e))
+        for (processadora, date), records in groups.items():
+            path = self._path(processadora, date)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as f:
+                for r in records:
+                    f.write(json.dumps(r, ensure_ascii=False) + "\n")
