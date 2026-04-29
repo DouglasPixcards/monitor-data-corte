@@ -2,32 +2,28 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from app.core.models import Execucao, DadoCorte, Evento
 
-class StorageRepository(ABC):
-    @abstractmethod
-    def load_latest_snapshot(self, processadora: str) -> dict | None:
-        pass
 
+class ExecucaoRepository(ABC):
     @abstractmethod
-    def load_latest_execution(self, processadora: str) -> dict | None:
-        pass
+    def salvar(self, execucao: Execucao) -> None: ...
 
     @abstractmethod
-    def save_execution(self, processadora: str, execution: dict) -> None:
-        pass
+    def buscar_ultima_ok(self, processadora: str) -> Execucao | None: ...
 
     @abstractmethod
-    def save_snapshot(self, processadora: str, snapshot: dict) -> None:
-        pass
+    def listar(self, processadora: str) -> list[Execucao]: ...
+
+
+class DadosCorteRepository(ABC):
+    @abstractmethod
+    def salvar_lote(self, dados: list[DadoCorte]) -> None: ...
 
     @abstractmethod
-    def save_latest_snapshot(self, processadora: str, snapshot: dict) -> None:
-        pass
+    def buscar_por_execucao(self, execucao_id: str) -> list[DadoCorte]: ...
 
-    @abstractmethod
-    def append_events(self, processadora: str, events: list[dict]) -> None:
-        pass
 
+class EventoRepository(ABC):
     @abstractmethod
-    def load_all_executions(self, processadora: str) -> list[dict]:
-        pass
+    def salvar_lote(self, eventos: list[Evento]) -> None: ...

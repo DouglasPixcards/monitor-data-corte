@@ -1,2 +1,1 @@
-from app.storage.repository import StorageRepository
-from app.storage.file_storage import FileStorageRepository
+from app.storage.repository import ExecucaoRepository, DadosCorteRepository, EventoRepository
