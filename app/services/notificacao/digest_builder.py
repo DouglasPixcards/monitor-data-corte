@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from html import escape as _esc
+
 from app.core.models import Evento
 
 
@@ -13,11 +15,11 @@ class DigestBuilder:
         linhas = "".join(
             f"""
             <tr>
-                <td style="padding:6px 12px">{e.convenio_key}</td>
-                <td style="padding:6px 12px">{e.folha or '-'}</td>
-                <td style="padding:6px 12px">{e.mes_atual or '-'}</td>
-                <td style="padding:6px 12px">{e.data_corte_anterior or '-'}</td>
-                <td style="padding:6px 12px"><strong>{e.data_corte_nova or '-'}</strong></td>
+                <td style="padding:6px 12px">{_esc(e.convenio_key or '')}</td>
+                <td style="padding:6px 12px">{_esc(e.folha or '-')}</td>
+                <td style="padding:6px 12px">{_esc(e.mes_atual or '-')}</td>
+                <td style="padding:6px 12px">{_esc(e.data_corte_anterior or '-')}</td>
+                <td style="padding:6px 12px"><strong>{_esc(e.data_corte_nova or '-')}</strong></td>
             </tr>"""
             for e in mudancas
         )
