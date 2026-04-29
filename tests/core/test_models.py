@@ -64,3 +64,22 @@ def test_evento_registro_novo_anterior_e_none():
     )
     assert e.data_corte_anterior is None
     assert e.data_corte_nova == "10/05/2026"
+
+
+def test_dado_corte_campos_opcionais_tem_default_none():
+    d = DadoCorte(id="d1", execucao_id="exec1", convenio_key="belterra", coletado_em="2026-04-29T08:00:00")
+    assert d.folha is None
+    assert d.mes_atual is None
+    assert d.data_corte is None
+    assert d.convenio_nome is None
+
+
+def test_evento_campos_opcionais_tem_default_none():
+    e = Evento(
+        id="e1", tipo="registro_novo", processadora="consigfacil",
+        convenio_key="belterra", execucao_id="exec1", detectado_em="2026-04-29T08:00:00",
+    )
+    assert e.folha is None
+    assert e.mes_atual is None
+    assert e.data_corte_anterior is None
+    assert e.data_corte_nova is None
