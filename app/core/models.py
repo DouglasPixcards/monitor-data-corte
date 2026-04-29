@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.core.enums import EventoTipo
+
 
 @dataclass
 class Execucao:
@@ -29,7 +31,7 @@ class DadoCorte:
 @dataclass
 class Evento:
     id: str
-    tipo: str
+    tipo: EventoTipo
     processadora: str
     convenio_key: str
     execucao_id: str

@@ -9,3 +9,10 @@ class AuthType(str, Enum):
 class CollectionStatus(str, Enum):
     OK = "ok"
     ERROR = "error"
+
+
+class EventoTipo(str, Enum):
+    DATA_CORTE_ALTERADA = "data_corte_alterada"
+    REGISTRO_NOVO = "registro_novo"
+    REGISTRO_NAO_ENCONTRADO = "registro_nao_encontrado"
+    ERRO_COLETA = "erro_coleta"

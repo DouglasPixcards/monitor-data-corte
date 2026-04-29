@@ -1,4 +1,5 @@
 from app.core.models import Execucao, DadoCorte, Evento
+from app.core.enums import EventoTipo
 
 
 def test_execucao_fields():
@@ -35,7 +36,7 @@ def test_dado_corte_campos_opcionais_podem_ser_none():
 def test_evento_fields_data_corte_alterada():
     e = Evento(
         id="e1",
-        tipo="data_corte_alterada",
+        tipo=EventoTipo.DATA_CORTE_ALTERADA,
         processadora="consigfacil",
         convenio_key="belterra",
         execucao_id="exec1",
@@ -52,7 +53,7 @@ def test_evento_fields_data_corte_alterada():
 def test_evento_registro_novo_anterior_e_none():
     e = Evento(
         id="e2",
-        tipo="registro_novo",
+        tipo=EventoTipo.REGISTRO_NOVO,
         processadora="consigfacil",
         convenio_key="belterra",
         execucao_id="exec1",
@@ -76,10 +77,17 @@ def test_dado_corte_campos_opcionais_tem_default_none():
 
 def test_evento_campos_opcionais_tem_default_none():
     e = Evento(
-        id="e1", tipo="registro_novo", processadora="consigfacil",
+        id="e1", tipo=EventoTipo.REGISTRO_NOVO, processadora="consigfacil",
         convenio_key="belterra", execucao_id="exec1", detectado_em="2026-04-29T08:00:00",
     )
     assert e.folha is None
     assert e.mes_atual is None
     assert e.data_corte_anterior is None
     assert e.data_corte_nova is None
+
+
+def test_evento_tipo_valores():
+    assert EventoTipo.DATA_CORTE_ALTERADA == "data_corte_alterada"
+    assert EventoTipo.REGISTRO_NOVO == "registro_novo"
+    assert EventoTipo.REGISTRO_NAO_ENCONTRADO == "registro_nao_encontrado"
+    assert EventoTipo.ERRO_COLETA == "erro_coleta"
