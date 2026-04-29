@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 from app.core.models import Execucao, DadoCorte, Evento
 from app.storage.file_storage import (
@@ -109,7 +112,13 @@ def test_evento_salvar_lote(base):
             data_corte_nova="08/05/2026",
         ),
     ]
-    repo.salvar_lote(eventos)  # não deve levantar exceção
+    repo.salvar_lote(eventos)
+    arquivos = list(Path(base).rglob("*.jsonl"))
+    assert len(arquivos) == 1
+    linha = json.loads(arquivos[0].read_text(encoding="utf-8").strip())
+    assert linha["id"] == "e1"
+    assert linha["convenio_key"] == "belterra"
+    assert linha["data_corte_anterior"] == "10/05/2026"
 
 
 def test_evento_salvar_lote_vazio_nao_falha(base):

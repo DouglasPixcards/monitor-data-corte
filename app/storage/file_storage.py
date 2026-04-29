@@ -5,7 +5,6 @@ from collections import defaultdict
 from dataclasses import asdict
 from pathlib import Path
 
-from app.core.enums import EventoTipo
 from app.core.models import Execucao, DadoCorte, Evento
 from app.storage.repository import (
     ExecucaoRepository,
@@ -30,10 +29,12 @@ class FileExecucaoRepository(ExecucaoRepository):
         d = self._dir(processadora)
         if not d.exists():
             return []
-        execucoes = [
-            Execucao(**json.loads(arq.read_text(encoding="utf-8")))
-            for arq in d.glob("*.json")
-        ]
+        execucoes = []
+        for arq in d.glob("*.json"):
+            try:
+                execucoes.append(Execucao(**json.loads(arq.read_text(encoding="utf-8"))))
+            except (json.JSONDecodeError, TypeError):
+                pass
         execucoes.sort(key=lambda e: e.executada_em, reverse=True)
         return execucoes
 
@@ -59,6 +60,8 @@ class FileDadosCorteRepository(DadosCorteRepository):
             groups[d.execucao_id].append(asdict(d))
         for execucao_id, records in groups.items():
             path = self._path(execucao_id)
+            if path.exists():
+                raise FileExistsError(f"Dados de corte já registrados para execucao_id={execucao_id}")
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
 
