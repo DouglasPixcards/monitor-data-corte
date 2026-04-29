@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+from dataclasses import asdict
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,15 +16,23 @@ from app.storage.file_storage import (
     FileExecucaoRepository,
 )
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="Pipeline Corte API")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _check_smtp_config() -> None:
+    if not settings.SMTP_HOST:
+        logger.warning("SMTP_HOST não configurado — notificações por e-mail desabilitadas")
 
 
 def _build_orchestrator() -> ColetaOrchestrator:
@@ -59,14 +70,17 @@ def executar_coleta(processadora: str) -> dict:
             "success_count": execucao.success_count,
             "error_count": execucao.error_count,
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception:
+        logger.exception("Falha ao executar coleta para %s", processadora)
+        raise HTTPException(status_code=500, detail="Falha interna ao executar coleta.")
 
 
 @app.get("/coletas/{processadora}/execucoes")
 def listar_execucoes(processadora: str) -> list[dict]:
     repo = FileExecucaoRepository(settings.STORAGE_PATH)
-    return [e.__dict__ for e in repo.listar(processadora)]
+    return [asdict(e) for e in repo.listar(processadora)]
 
 
 @app.get("/coletas/{processadora}/dados")
@@ -76,4 +90,4 @@ def obter_dados_atuais(processadora: str) -> list[dict]:
     ultima = execucao_repo.buscar_ultima_ok(processadora)
     if not ultima:
         return []
-    return [d.__dict__ for d in dados_repo.buscar_por_execucao(ultima.id)]
+    return [asdict(d) for d in dados_repo.buscar_por_execucao(ultima.id)]
