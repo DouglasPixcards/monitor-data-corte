@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from app.core.enums import EventoTipo
+
+logger = logging.getLogger(__name__)
 from app.core.models import DadoCorte, Execucao
 from app.services.comparador_service import ComparadorService
 from app.services.notificacao.base import NotificadorBase
@@ -98,6 +101,6 @@ class ColetaOrchestrator:
             try:
                 self._notificador.enviar(assunto, self._destinatarios, corpo)
             except Exception as exc:
-                print(f"[orchestrator] Falha ao enviar notificação: {exc}")
+                logger.warning("Falha ao enviar notificação: %s", exc)
 
         return execucao

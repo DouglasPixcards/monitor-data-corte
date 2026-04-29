@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from app.core.enums import EventoTipo
+
+logger = logging.getLogger(__name__)
 from app.core.models import DadoCorte, Evento
 from app.services.storage_helpers import now_iso
 
@@ -72,7 +75,7 @@ class ComparadorService:
         for d in dados:
             chave = ComparadorService._chave(d)
             if chave in mapa:
-                print(f"[comparador] Chave duplicada ignorada: {chave}")
+                logger.warning("Chave duplicada ignorada: %s", chave)
             mapa[chave] = d
         return mapa
 
