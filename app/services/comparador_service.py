@@ -18,8 +18,8 @@ class ComparadorService:
         eventos: list[Evento] = []
         agora = now_iso()
 
-        mapa_anterior = {self._chave(d): d for d in anteriores}
-        mapa_atual = {self._chave(d): d for d in atuais}
+        mapa_anterior = self._construir_mapa(anteriores)
+        mapa_atual = self._construir_mapa(atuais)
 
         for chave, atual in mapa_atual.items():
             if chave not in mapa_anterior:
@@ -67,5 +67,16 @@ class ComparadorService:
         return eventos
 
     @staticmethod
+    def _construir_mapa(dados: list[DadoCorte]) -> dict[str, DadoCorte]:
+        mapa: dict[str, DadoCorte] = {}
+        for d in dados:
+            chave = ComparadorService._chave(d)
+            if chave in mapa:
+                print(f"[comparador] Chave duplicada ignorada: {chave}")
+            mapa[chave] = d
+        return mapa
+
+    @staticmethod
     def _chave(dado: DadoCorte) -> str:
-        return f"{dado.convenio_key}|{(dado.folha or '').strip()}|{(dado.mes_atual or '').strip()}"
+        # convenio_key é um identificador programático — assume-se sem espaços extras
+        return f"{dado.convenio_key or ''}|{(dado.folha or '').strip()}|{(dado.mes_atual or '').strip()}"

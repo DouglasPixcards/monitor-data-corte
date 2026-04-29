@@ -59,6 +59,13 @@ def test_primeira_execucao_gera_apenas_registros_novos():
     assert all(e.tipo == EventoTipo.REGISTRO_NOVO for e in eventos)
 
 
+def test_chave_normaliza_espacos_em_folha_e_mes_atual():
+    anterior = [_dado("belterra", "FOLHA 02", "02/2026", "10/05/2026")]
+    atual = [_dado("belterra", " FOLHA 02 ", " 02/2026 ", "10/05/2026")]
+    eventos = ComparadorService().comparar("consigfacil", "exec2", anterior, atual)
+    assert eventos == []
+
+
 def test_chave_inclui_convenio_key_para_evitar_colisao():
     # belterra e maranhao com mesma folha+mes mas dados corte diferentes
     anterior = [
