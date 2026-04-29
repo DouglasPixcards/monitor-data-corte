@@ -8,7 +8,8 @@ class AuthType(str, Enum):
 
 class CollectionStatus(str, Enum):
     OK = "ok"
-    ERROR = "error"
+    ERROR = "erro"
+    PARTIAL_SUCCESS = "partial_success"
 
 
 class EventoTipo(str, Enum):
