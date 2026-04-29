@@ -91,3 +91,10 @@ def test_evento_tipo_valores():
     assert EventoTipo.REGISTRO_NOVO == "registro_novo"
     assert EventoTipo.REGISTRO_NAO_ENCONTRADO == "registro_nao_encontrado"
     assert EventoTipo.ERRO_COLETA == "erro_coleta"
+
+
+def test_collection_status_valores():
+    from app.core.enums import CollectionStatus
+    assert CollectionStatus.OK == "ok"
+    assert CollectionStatus.ERROR == "erro"
+    assert CollectionStatus.PARTIAL_SUCCESS == "partial_success"
