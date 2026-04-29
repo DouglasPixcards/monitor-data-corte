@@ -24,6 +24,8 @@ class EmailSMTPNotificador(NotificadorBase):
         self._use_tls = use_tls
 
     def enviar(self, assunto: str, destinatarios: list[str], corpo_html: str) -> None:
+        if not destinatarios:
+            return
         msg = MIMEMultipart("alternative")
         msg["Subject"] = assunto
         msg["From"] = self._user
