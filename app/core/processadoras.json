@@ -1,7 +1,7 @@
 {
   "processadoras": {
     "consigfacil": {
-      "auth_type": "route_certificate",
+      "auth_type": "certificate",
       "url_template": "https://www.faciltecnologia.com.br/consigfacil/{slug}/validar_certificado_cliente.php",
       "uses_chrome_channel": true
     },

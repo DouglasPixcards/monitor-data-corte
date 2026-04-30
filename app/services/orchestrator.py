@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+import json
 
 from app.core.enums import EventoTipo
 
@@ -56,6 +57,10 @@ class ColetaOrchestrator:
 
         # 2. Rodar scrapers
         resultado_lote = executar_coleta_lote(processadora)
+
+        print("\n=== RESULTADO_LOTE BRUTO ===")
+        print(json.dumps(resultado_lote, ensure_ascii=False, indent=2))
+        print("=== FIM RESULTADO_LOTE BRUTO ===\n")
 
         # 3. Salvar execução
         execucao = Execucao(
