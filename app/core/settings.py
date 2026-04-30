@@ -28,5 +28,8 @@ class Settings:
         if e.strip()
     ]
 
+    # Agendamento — formato "HH:MM". Vazio = desabilitado.
+    COLETA_HORARIO: str = os.getenv("COLETA_HORARIO", "")
+
 
 settings = Settings()
