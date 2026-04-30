@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from app.auth.certificate_auth import CertificateAuthStrategy
 from app.auth.user_pass_auth import LoginPasswordAuthStrategy
 from app.core.loader import load_processadoras_config
@@ -7,6 +9,8 @@ from app.scrapers.consigfacil.scraper import ConsigFacilScraper
 from app.scrapers.safeconsig.scraper import SafeConsigScraper
 from app.scrapers.consigup.scraper import ConsigUpScraper
 from app.core.enums import *
+
+logger = logging.getLogger(__name__)
 
 
 def build_auth_strategy(processadora_config: dict, convenio_config: dict):
@@ -151,6 +155,12 @@ def executar_coleta_lote(processadora_key: str) -> dict:
         resultados_convenios.append(resultado_convenio)
 
         if resultado_convenio["status"] != "ok":
+            logger.error(
+                "Coleta falhou para %s (%s): %s",
+                convenio_key,
+                convenio_config.get("nome", ""),
+                resultado_convenio.get("erro"),
+            )
             continue
 
         for record in resultado_convenio["dados"]:

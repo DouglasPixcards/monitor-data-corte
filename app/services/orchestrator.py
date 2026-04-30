@@ -111,7 +111,7 @@ class ColetaOrchestrator:
             assunto, corpo = DigestBuilder.build(processadora, mudancas)
             try:
                 self._notificador.enviar(assunto, self._destinatarios, corpo)
-            except Exception as exc:
-                logger.warning("Falha ao enviar notificação: %s", exc)
+            except Exception:
+                logger.exception("Falha ao enviar notificação por e-mail")
 
         return execucao
