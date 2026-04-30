@@ -39,6 +39,30 @@ RESULTADO_LOTE_OK = {
             "data_corte": "10/05/2026",
         }
     ],
+    "convenios": [
+        {"convenio_key": "belterra", "convenio_nome": "Belterra", "status": "ok", "erro": None},
+    ],
+}
+
+RESULTADO_LOTE_PARCIAL = {
+    "processadora": "consigfacil",
+    "status": "partial_success",
+    "total_convenios": 2,
+    "success_count": 1,
+    "error_count": 1,
+    "records": [
+        {
+            "convenio_key": "belterra",
+            "convenio_nome": "Belterra",
+            "folha": "FOLHA 02",
+            "mes_atual": "02/2026",
+            "data_corte": "10/05/2026",
+        }
+    ],
+    "convenios": [
+        {"convenio_key": "belterra", "convenio_nome": "Belterra", "status": "ok", "erro": None},
+        {"convenio_key": "tjsp", "convenio_nome": "TJSP", "status": "erro", "erro": "Timeout na página"},
+    ],
 }
 
 
@@ -110,6 +134,24 @@ def test_execucao_salva_com_status_correto(orch):
     execucao_salva = execucao_repo.salvar.call_args[0][0]
     assert execucao_salva.status == "ok"
     assert execucao_salva.processadora == "consigfacil"
+
+
+def test_erros_convenio_persistidos_na_execucao(orch):
+    o, execucao_repo, _, _, _ = orch
+    with patch("app.services.orchestrator.executar_coleta_lote", return_value=RESULTADO_LOTE_PARCIAL):
+        o.executar("consigfacil")
+    execucao_salva = execucao_repo.salvar.call_args[0][0]
+    assert len(execucao_salva.erros) == 1
+    assert execucao_salva.erros[0]["convenio_key"] == "tjsp"
+    assert execucao_salva.erros[0]["erro"] == "Timeout na página"
+
+
+def test_execucao_sem_erros_tem_lista_vazia(orch):
+    o, execucao_repo, _, _, _ = orch
+    with patch("app.services.orchestrator.executar_coleta_lote", return_value=RESULTADO_LOTE_OK):
+        o.executar("consigfacil")
+    execucao_salva = execucao_repo.salvar.call_args[0][0]
+    assert execucao_salva.erros == []
 
 
 def test_dados_carregados_antes_de_salvar_nova_execucao(orch):

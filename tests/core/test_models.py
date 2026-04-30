@@ -93,6 +93,14 @@ def test_evento_tipo_valores():
     assert EventoTipo.ERRO_COLETA == "erro_coleta"
 
 
+def test_execucao_erros_default_lista_vazia():
+    e = Execucao(
+        id="abc", processadora="consigfacil", executada_em="2026-04-29T08:00:00",
+        status="ok", total_convenios=1, success_count=1, error_count=0,
+    )
+    assert e.erros == []
+
+
 def test_collection_status_valores():
     from app.core.enums import CollectionStatus
     assert CollectionStatus.OK == "ok"
