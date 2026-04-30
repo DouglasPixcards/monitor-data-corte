@@ -57,6 +57,31 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@app.post("/notificacao/testar")
+def testar_smtp() -> dict:
+    if not settings.SMTP_HOST:
+        raise HTTPException(status_code=422, detail="SMTP_HOST não configurado.")
+    if not settings.NOTIFICACAO_DESTINATARIOS:
+        raise HTTPException(status_code=422, detail="NOTIFICACAO_DESTINATARIOS não configurado.")
+    notificador = EmailSMTPNotificador(
+        host=settings.SMTP_HOST,
+        port=settings.SMTP_PORT,
+        user=settings.SMTP_USER,
+        password=settings.SMTP_PASSWORD,
+        use_tls=settings.SMTP_USE_TLS,
+    )
+    try:
+        notificador.enviar(
+            assunto="[Teste] Monitor Datas de Corte — verificação de SMTP",
+            destinatarios=settings.NOTIFICACAO_DESTINATARIOS,
+            corpo_html="<p>Configuração SMTP funcionando corretamente.</p>",
+        )
+    except Exception:
+        logger.exception("Falha no teste de envio SMTP")
+        raise HTTPException(status_code=500, detail="Falha ao enviar e-mail de teste.")
+    return {"status": "ok", "destinatarios": settings.NOTIFICACAO_DESTINATARIOS}
+
+
 @app.post("/coletas/{processadora}/executar")
 def executar_coleta(processadora: str) -> dict:
     try:
