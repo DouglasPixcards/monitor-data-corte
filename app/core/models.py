@@ -14,6 +14,7 @@ class Execucao:
     total_convenios: int
     success_count: int
     error_count: int
+    erros: list[dict] = field(default_factory=list)
 
 
 @dataclass

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-import json
 
 from app.core.enums import EventoTipo
 
@@ -58,11 +57,17 @@ class ColetaOrchestrator:
         # 2. Rodar scrapers
         resultado_lote = executar_coleta_lote(processadora)
 
-        print("\n=== RESULTADO_LOTE BRUTO ===")
-        print(json.dumps(resultado_lote, ensure_ascii=False, indent=2))
-        print("=== FIM RESULTADO_LOTE BRUTO ===\n")
-
-        # 3. Salvar execução
+        # 3. Salvar execução (erros por convênio extraídos do resultado do lote)
+        erros_convenios = [
+            {
+                "convenio_key": c["convenio_key"],
+                "convenio_nome": c.get("convenio_nome"),
+                "status": c["status"],
+                "erro": c.get("erro"),
+            }
+            for c in resultado_lote.get("convenios", [])
+            if c.get("status") != "ok"
+        ]
         execucao = Execucao(
             id=str(uuid.uuid4()),
             processadora=processadora,
@@ -71,6 +76,7 @@ class ColetaOrchestrator:
             total_convenios=resultado_lote["total_convenios"],
             success_count=resultado_lote["success_count"],
             error_count=resultado_lote["error_count"],
+            erros=erros_convenios,
         )
         self._execucao_repo.salvar(execucao)
 
