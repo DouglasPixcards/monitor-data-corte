@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 
 from fastapi import FastAPI, HTTPException
@@ -10,6 +11,7 @@ from app.core.settings import settings
 from app.services.comparador_service import ComparadorService
 from app.services.notificacao.smtp import EmailSMTPNotificador
 from app.services.orchestrator import ColetaOrchestrator
+from app.services.scheduler import SchedulerService
 from app.storage.file_storage import (
     FileDadosCorteRepository,
     FileEventoRepository,
@@ -18,7 +20,21 @@ from app.storage.file_storage import (
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Pipeline Corte API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if not settings.SMTP_HOST:
+        logger.warning("SMTP_HOST não configurado — notificações por e-mail desabilitadas")
+    scheduler = SchedulerService(
+        horario=settings.COLETA_HORARIO,
+        orchestrator_factory=_build_orchestrator,
+    )
+    scheduler.iniciar()
+    yield
+    scheduler.parar()
+
+
+app = FastAPI(title="Pipeline Corte API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,12 +43,6 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def _check_smtp_config() -> None:
-    if not settings.SMTP_HOST:
-        logger.warning("SMTP_HOST não configurado — notificações por e-mail desabilitadas")
 
 
 def _build_orchestrator() -> ColetaOrchestrator:
