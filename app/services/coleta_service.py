@@ -6,15 +6,16 @@ from app.core.loader import load_processadoras_config
 from app.scrapers.consigfacil.scraper import ConsigFacilScraper
 from app.scrapers.safeconsig.scraper import SafeConsigScraper
 from app.scrapers.consigup.scraper import ConsigUpScraper
+from app.core.enums import *
 
 
 def build_auth_strategy(processadora_config: dict, convenio_config: dict):
     auth_type = processadora_config["auth_type"]
 
-    if auth_type == "route_certificate":
+    if auth_type == AuthType.CERTIFICATE:
         return CertificateAuthStrategy()
 
-    if auth_type == "login_password":
+    if auth_type == AuthType.LOGIN_PASSWORD:
         return LoginPasswordAuthStrategy(
             username=convenio_config["credentials"]["username"],
             password=convenio_config["credentials"]["password"],

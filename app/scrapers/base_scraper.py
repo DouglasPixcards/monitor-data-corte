@@ -14,7 +14,6 @@ from playwright.sync_api import (
 
 from app.core.settings import settings
 from app.auth.base_auth_strategy import BaseAuthStrategy
-from app.storage.file_storage import FileStorageRepository
 
 class BaseScraper(ABC):
     def __init__(
@@ -26,7 +25,6 @@ class BaseScraper(ABC):
         self.processadora_config = processadora_config
         self.convenio_config = convenio_config
         self.auth_strategy = auth_strategy
-        self.storage = FileStorageRepository(base_path=settings.STORAGE_PATH)
 
         self.processadora = self.convenio_config.get(
             "processadora",
@@ -144,8 +142,11 @@ class BaseScraper(ABC):
         if self.page is None:
             raise RuntimeError("Page não inicializada.")
 
-        target_url = self.get_target_url()
-        self.auth_strategy.authenticate(self.page, target_url)
+        self.auth_strategy.authenticate(
+            page=self.page,
+            target_url=self.get_target_url(),
+            timeout=self.timeout,
+        )
 
     @abstractmethod
     def validate_access(self) -> None:
