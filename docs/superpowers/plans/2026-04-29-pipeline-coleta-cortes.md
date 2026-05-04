@@ -20,21 +20,21 @@
 | **Reescrever** | `app/storage/repository.py` | 3 interfaces ABC sem conceito de arquivo |
 | **Reescrever** | `app/storage/file_storage.py` | Implementações das 3 interfaces em arquivo |
 | **Reescrever** | `app/services/comparador_service.py` | `ComparadorService` — recebe listas, retorna `list[Evento]` |
-| **Criar** | `app/services/notificacao/base.py` | `NotificadorBase` ABC |
-| **Criar** | `app/services/notificacao/smtp.py` | `EmailSMTPNotificador` |
-| **Criar** | `app/services/notificacao/digest_builder.py` | `DigestBuilder` — monta assunto + HTML |
-| **Criar** | `app/services/notificacao/__init__.py` | (vazio) |
+| **Criar** | `app/services/notification/base.py` | `NotificadorBase` ABC |
+| **Criar** | `app/services/notification/smtp.py` | `EmailSMTPNotificador` |
+| **Criar** | `app/services/notification/digest_builder.py` | `DigestBuilder` — monta assunto + HTML |
+| **Criar** | `app/services/notification/__init__.py` | (vazio) |
 | **Criar** | `app/services/orchestrator.py` | `ColetaOrchestrator` — pipeline completo |
 | **Reescrever** | `app/api/main.py` | Endpoints usando orquestrador |
 | **Deletar** | `app/services/collector_service.py` | Substituído por `orchestrator.py` |
 | **Deletar** | `app/services/comparator.py` | Substituído por `comparador_service.py` |
 | **Deletar** | `app/services/events.py` | Lógica absorvida pelo `comparador_service.py` |
-| **Deletar** | `app/services/alert.py` | Substituído por `notificacao/` |
+| **Deletar** | `app/services/alert.py` | Substituído por `notification/` |
 | **Criar** | `tests/__init__.py` | (vazio) |
 | **Criar** | `tests/core/test_models.py` | Testes dos dataclasses |
 | **Criar** | `tests/storage/test_file_storage.py` | Testes de round-trip do storage |
 | **Criar** | `tests/services/test_comparador_service.py` | Testes de lógica de comparação |
-| **Criar** | `tests/services/notificacao/test_digest_builder.py` | Testes do builder de e-mail |
+| **Criar** | `tests/services/notification/test_digest_builder.py` | Testes do builder de e-mail |
 | **Criar** | `tests/services/test_orchestrator.py` | Testes do pipeline com mocks |
 
 **Arquivos que NÃO mudam:** `app/scrapers/*`, `app/services/coleta_service.py`, `app/auth/*`, `app/core/processadoras.json`, `app/core/loader.py`, `app/utils/*`, `app/services/storage_helpers.py`.
@@ -52,8 +52,8 @@
 - [ ] **Step 1: Criar estrutura de testes**
 
 ```bash
-mkdir -p tests/core tests/services/notificacao tests/storage
-touch tests/__init__.py tests/core/__init__.py tests/services/__init__.py tests/services/notificacao/__init__.py tests/storage/__init__.py
+mkdir -p tests/core tests/services/notification tests/storage
+touch tests/__init__.py tests/core/__init__.py tests/services/__init__.py tests/services/notification/__init__.py tests/storage/__init__.py
 ```
 
 - [ ] **Step 2: Escrever o teste**
@@ -190,7 +190,7 @@ Esperado: `4 passed`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/core/models.py tests/core/test_models.py tests/__init__.py tests/core/__init__.py tests/services/__init__.py tests/services/notificacao/__init__.py tests/storage/__init__.py
+git add app/core/models.py tests/core/test_models.py tests/__init__.py tests/core/__init__.py tests/services/__init__.py tests/services/notification/__init__.py tests/storage/__init__.py
 git commit -m "feat: add domain models Execucao, DadoCorte, Evento"
 ```
 
@@ -753,20 +753,20 @@ git commit -m "feat: implement ComparadorService with typed Evento output"
 
 ---
 
-## Task 6: Camada de notificação (`app/services/notificacao/`)
+## Task 6: Camada de notificação (`app/services/notification/`)
 
 **Files:**
-- Create: `app/services/notificacao/__init__.py`
-- Create: `app/services/notificacao/base.py`
-- Create: `app/services/notificacao/digest_builder.py`
-- Create: `app/services/notificacao/smtp.py`
-- Create: `tests/services/notificacao/test_digest_builder.py`
+- Create: `app/services/notification/__init__.py`
+- Create: `app/services/notification/base.py`
+- Create: `app/services/notification/digest_builder.py`
+- Create: `app/services/notification/smtp.py`
+- Create: `tests/services/notification/test_digest_builder.py`
 
 - [ ] **Step 1: Escrever os testes do DigestBuilder**
 
-`tests/services/notificacao/test_digest_builder.py`:
+`tests/services/notification/test_digest_builder.py`:
 ```python
-from app.services.notificacao.digest_builder import DigestBuilder
+from app.services.notification.digest_builder import DigestBuilder
 from app.core.models import Evento
 from app.core.enums import EventoTipo
 
@@ -817,17 +817,17 @@ def test_corpo_e_html():
 - [ ] **Step 2: Executar para confirmar FAIL**
 
 ```bash
-pytest tests/services/notificacao/test_digest_builder.py -v
+pytest tests/services/notification/test_digest_builder.py -v
 ```
 Esperado: `ImportError`
 
-- [ ] **Step 3: Criar `app/services/notificacao/__init__.py`** (vazio)
+- [ ] **Step 3: Criar `app/services/notification/__init__.py`** (vazio)
 
 ```bash
-touch app/services/notificacao/__init__.py
+touch app/services/notification/__init__.py
 ```
 
-- [ ] **Step 4: Criar `app/services/notificacao/base.py`**
+- [ ] **Step 4: Criar `app/services/notification/base.py`**
 
 ```python
 from __future__ import annotations
@@ -840,7 +840,7 @@ class NotificadorBase(ABC):
     def enviar(self, assunto: str, destinatarios: list[str], corpo_html: str) -> None: ...
 ```
 
-- [ ] **Step 5: Criar `app/services/notificacao/digest_builder.py`**
+- [ ] **Step 5: Criar `app/services/notification/digest_builder.py`**
 
 ```python
 from __future__ import annotations
@@ -891,7 +891,7 @@ class DigestBuilder:
         return assunto, corpo
 ```
 
-- [ ] **Step 6: Criar `app/services/notificacao/smtp.py`**
+- [ ] **Step 6: Criar `app/services/notification/smtp.py`**
 
 ```python
 from __future__ import annotations
@@ -901,7 +901,7 @@ import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from app.services.notificacao.base import NotificadorBase
+from app.services.notification.base import NotificadorBase
 
 
 class EmailSMTPNotificador(NotificadorBase):
@@ -937,14 +937,14 @@ class EmailSMTPNotificador(NotificadorBase):
 - [ ] **Step 7: Executar para confirmar PASS**
 
 ```bash
-pytest tests/services/notificacao/test_digest_builder.py -v
+pytest tests/services/notification/test_digest_builder.py -v
 ```
 Esperado: `4 passed`
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add app/services/notificacao/ tests/services/notificacao/
+git add app/services/notification/ tests/services/notification/
 git commit -m "feat: add notification layer with NotificadorBase, EmailSMTPNotificador, DigestBuilder"
 ```
 
@@ -982,9 +982,9 @@ class Settings:
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_USE_TLS: bool = _bool(os.getenv("SMTP_USE_TLS"), True)
-    NOTIFICACAO_DESTINATARIOS: list[str] = [
+    notification_DESTINATARIOS: list[str] = [
         e.strip()
-        for e in os.getenv("NOTIFICACAO_DESTINATARIOS", "").split(",")
+        for e in os.getenv("notification_DESTINATARIOS", "").split(",")
         if e.strip()
     ]
 
@@ -1161,8 +1161,8 @@ from app.core.enums import EventoTipo
 from app.core.models import DadoCorte, Execucao
 from app.services.coleta_service import executar_coleta_lote
 from app.services.comparador_service import ComparadorService
-from app.services.notificacao.base import NotificadorBase
-from app.services.notificacao.digest_builder import DigestBuilder
+from app.services.notification.base import NotificadorBase
+from app.services.notification.digest_builder import DigestBuilder
 from app.services.storage_helpers import now_iso
 from app.storage.repository import (
     DadosCorteRepository,
@@ -1282,7 +1282,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.settings import settings
 from app.services.comparador_service import ComparadorService
-from app.services.notificacao.smtp import EmailSMTPNotificador
+from app.services.notification.smtp import EmailSMTPNotificador
 from app.services.orchestrator import ColetaOrchestrator
 from app.storage.file_storage import (
     FileDadosCorteRepository,
@@ -1314,7 +1314,7 @@ def _build_orchestrator() -> ColetaOrchestrator:
             password=settings.SMTP_PASSWORD,
             use_tls=settings.SMTP_USE_TLS,
         ),
-        destinatarios=settings.NOTIFICACAO_DESTINATARIOS,
+        destinatarios=settings.notification_DESTINATARIOS,
     )
 
 

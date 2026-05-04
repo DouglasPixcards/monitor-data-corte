@@ -51,7 +51,7 @@ monitor-data-corte/
     │   ├── coleta_service.py        # Sem mudança — constrói e roda scrapers
     │   ├── comparador_service.py    # Redesenhado — recebe listas de DadoCorte, retorna list[Evento]
     │   ├── orchestrator.py          # NOVO — coordena o pipeline completo
-    │   └── notificacao/
+    │   └── notification/
     │       ├── base.py              # NotificadorBase (ABC)
     │       ├── smtp.py              # EmailSMTPNotificador
     │       └── digest_builder.py    # Monta assunto + corpo HTML do digest
@@ -234,7 +234,7 @@ class ColetaOrchestrator:
 ### Interface
 
 ```python
-# app/services/notificacao/base.py
+# app/services/notification/base.py
 
 class NotificadorBase(ABC):
     @abstractmethod
@@ -244,7 +244,7 @@ class NotificadorBase(ABC):
 ### Implementação SMTP
 
 ```python
-# app/services/notificacao/smtp.py
+# app/services/notification/smtp.py
 
 class EmailSMTPNotificador(NotificadorBase):
     def __init__(self, host: str, port: int, user: str, password: str, use_tls: bool = True): ...
@@ -259,7 +259,7 @@ SMTP_PORT
 SMTP_USER
 SMTP_PASSWORD
 SMTP_USE_TLS=true
-NOTIFICACAO_DESTINATARIOS=ana@empresa.com,joao@empresa.com
+notification_DESTINATARIOS=ana@empresa.com,joao@empresa.com
 ```
 
 ### Formato do digest

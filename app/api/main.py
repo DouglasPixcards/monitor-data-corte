@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.settings import settings
 from app.services.comparador_service import ComparadorService
-from app.services.notificacao.smtp import EmailSMTPNotificador
+from app.services.notification.smtp import EmailSMTPNotificador
 from app.services.orchestrator import ColetaOrchestrator
 from app.services.scheduler import SchedulerService
 from app.storage.file_storage import (
@@ -19,6 +19,11 @@ from app.storage.file_storage import (
 )
 
 logger = logging.getLogger(__name__)
+
+# logger.basicConfig(
+#     level=logging.INFO,
+#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+# )
 
 
 @asynccontextmanager
@@ -58,7 +63,7 @@ def _build_orchestrator() -> ColetaOrchestrator:
             password=settings.SMTP_PASSWORD,
             use_tls=settings.SMTP_USE_TLS,
         ),
-        destinatarios=settings.NOTIFICACAO_DESTINATARIOS,
+        destinatarios=settings.notification_DESTINATARIOS,
     )
 
 
@@ -67,12 +72,20 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/notificacao/testar")
+@app.post("/notification/testar")
 def testar_smtp() -> dict:
+    """
+    POST /notification/testar
+
+    → 422  se SMTP_HOST não estiver configurado
+    → 422  se NOTIFICACAO_DESTINATARIOS estiver vazio
+    → 500  se a conexão SMTP falhar
+    → 200  {"status": "ok", "destinatarios": ["..."]}
+    """
     if not settings.SMTP_HOST:
         raise HTTPException(status_code=422, detail="SMTP_HOST não configurado.")
-    if not settings.NOTIFICACAO_DESTINATARIOS:
-        raise HTTPException(status_code=422, detail="NOTIFICACAO_DESTINATARIOS não configurado.")
+    if not settings.notification_DESTINATARIOS:
+        raise HTTPException(status_code=422, detail="notification_DESTINATARIOS não configurado.")
     notificador = EmailSMTPNotificador(
         host=settings.SMTP_HOST,
         port=settings.SMTP_PORT,
@@ -83,13 +96,13 @@ def testar_smtp() -> dict:
     try:
         notificador.enviar(
             assunto="[Teste] Monitor Datas de Corte — verificação de SMTP",
-            destinatarios=settings.NOTIFICACAO_DESTINATARIOS,
+            destinatarios=settings.notification_DESTINATARIOS,
             corpo_html="<p>Configuração SMTP funcionando corretamente.</p>",
         )
     except Exception:
         logger.exception("Falha no teste de envio SMTP")
         raise HTTPException(status_code=500, detail="Falha ao enviar e-mail de teste.")
-    return {"status": "ok", "destinatarios": settings.NOTIFICACAO_DESTINATARIOS}
+    return {"status": "ok", "destinatarios": settings.notification_DESTINATARIOS}
 
 
 @app.post("/coletas/{processadora}/executar")

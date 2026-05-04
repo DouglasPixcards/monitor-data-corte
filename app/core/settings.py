@@ -22,9 +22,9 @@ class Settings:
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_USE_TLS: bool = _bool(os.getenv("SMTP_USE_TLS"), True)
-    NOTIFICACAO_DESTINATARIOS: list[str] = [
+    notification_DESTINATARIOS: list[str] = [
         e.strip()
-        for e in os.getenv("NOTIFICACAO_DESTINATARIOS", "").split(",")
+        for e in os.getenv("notification_DESTINATARIOS", "").split(",")
         if e.strip()
     ]
 
