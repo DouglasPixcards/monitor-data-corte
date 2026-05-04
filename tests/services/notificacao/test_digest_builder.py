@@ -1,4 +1,4 @@
-from app.services.notificacao.digest_builder import DigestBuilder
+from app.services.notification.digest_builder import DigestBuilder
 from app.core.models import Evento
 from app.core.enums import EventoTipo
 

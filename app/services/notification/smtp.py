@@ -5,7 +5,7 @@ import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from app.services.notificacao.base import NotificadorBase
+from app.services.notification.base import NotificadorBase
 
 
 class EmailSMTPNotificador(NotificadorBase):

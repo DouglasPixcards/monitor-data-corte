@@ -8,8 +8,8 @@ from app.core.enums import EventoTipo
 logger = logging.getLogger(__name__)
 from app.core.models import DadoCorte, Execucao
 from app.services.comparador_service import ComparadorService
-from app.services.notificacao.base import NotificadorBase
-from app.services.notificacao.digest_builder import DigestBuilder
+from app.services.notification.base import NotificadorBase
+from app.services.notification.digest_builder import DigestBuilder
 from app.services.storage_helpers import now_iso
 from app.storage.repository import (
     DadosCorteRepository,

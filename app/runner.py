@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from app.core.settings import settings
 from app.services.comparador_service import ComparadorService
-from app.services.notificacao.smtp import EmailSMTPNotificador
+from app.services.notification.smtp import EmailSMTPNotificador
 from app.services.orchestrator import ColetaOrchestrator
 from app.storage.file_storage import (
     FileDadosCorteRepository,
@@ -25,7 +25,7 @@ def _build_orchestrator() -> ColetaOrchestrator:
             password=settings.SMTP_PASSWORD,
             use_tls=settings.SMTP_USE_TLS,
         ),
-        destinatarios=settings.NOTIFICACAO_DESTINATARIOS,
+        destinatarios=settings.notification_DESTINATARIOS,
     )
 
 def run() -> None:
