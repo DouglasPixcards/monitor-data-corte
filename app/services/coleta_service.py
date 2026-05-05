@@ -8,7 +8,7 @@ from app.core.loader import load_processadoras_config
 from app.scrapers.consigfacil.scraper import ConsigFacilScraper
 from app.scrapers.safeconsig.scraper import SafeConsigScraper
 from app.scrapers.consigup.scraper import ConsigUpScraper
-from app.core.enums import *
+from app.core.enums import AuthType, CollectionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -99,18 +99,18 @@ def _filtrar_convenios_da_processadora(
 
 def _calcular_status_lote(resultados_convenios: list[dict]) -> str:
     if not resultados_convenios:
-        return "erro"
+        return CollectionStatus.ERROR
 
     total = len(resultados_convenios)
-    sucessos = sum(1 for item in resultados_convenios if item["status"] == "ok")
+    sucessos = sum(1 for item in resultados_convenios if item["status"] == CollectionStatus.OK)
 
     if sucessos == total:
-        return "ok"
+        return CollectionStatus.OK
 
     if sucessos == 0:
-        return "erro"
+        return CollectionStatus.ERROR
 
-    return "partial_success"
+    return CollectionStatus.PARTIAL_SUCCESS
 
 
 def executar_coleta_lote(processadora_key: str) -> dict:
