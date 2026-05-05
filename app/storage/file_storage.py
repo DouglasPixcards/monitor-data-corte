@@ -5,6 +5,7 @@ from collections import defaultdict
 from dataclasses import asdict
 from pathlib import Path
 
+from app.core.enums import CollectionStatus
 from app.core.models import Execucao, DadoCorte, Evento
 from app.storage.repository import (
     ExecucaoRepository,
@@ -40,7 +41,7 @@ class FileExecucaoRepository(ExecucaoRepository):
 
     def buscar_ultima_ok(self, processadora: str) -> Execucao | None:
         for e in self.listar(processadora):
-            if e.status == "ok":
+            if e.status == CollectionStatus.OK:
                 return e
         return None
 

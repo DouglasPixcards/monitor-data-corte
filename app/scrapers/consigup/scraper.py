@@ -1,8 +1,9 @@
+from __future__ import annotations
+
+import re
 from typing import Any
 
 from app.scrapers.base_scraper import BaseScraper
-from typing import Any
-import re
 
 
 class ConsigUpScraper(BaseScraper):
@@ -42,11 +43,9 @@ class ConsigUpScraper(BaseScraper):
                 data_corte = dia_corte
 
             dados.append({
-                "folha": None,
-                "mes_atual": None,
+                "folha": descricao,
+                "mes_atual": data_aviso,
                 "data_corte": data_corte,
-                "data_aviso": data_aviso,
-                "descricao": descricao,
             })
 
         return dados

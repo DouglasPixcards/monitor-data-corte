@@ -68,7 +68,10 @@ class SchedulerService:
         partes = self._horario.split(":")
         if len(partes) != 2:
             raise ValueError(self._horario)
-        return int(partes[0]), int(partes[1])
+        hora, minuto = int(partes[0]), int(partes[1])
+        if not (0 <= hora <= 23 and 0 <= minuto <= 59):
+            raise ValueError(self._horario)
+        return hora, minuto
 
     def _descobrir_processadoras(self) -> list[str]:
         config = load_processadoras_config()
