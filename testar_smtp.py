@@ -1,31 +1,81 @@
-"""
-Script manual para testar a configuração SMTP.
-Lê as variáveis do .env — não edite este arquivo com valores reais.
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-Uso:
-    python testar_smtp.py
-"""
+from dotenv import load_dotenv
+
 from app.core.settings import settings
-from app.services.notification.smtp import EmailSMTPNotificador
 
-if not settings.SMTP_HOST:
-    raise SystemExit("SMTP_HOST não configurado no .env")
+load_dotenv(override=True)
 
-if not settings.notification_DESTINATARIOS:
-    raise SystemExit("notification_DESTINATARIOS não configurado no .env")
+EMAIL_TO = "douglas.celestino@pixcards.com.br"
 
-notificador = EmailSMTPNotificador(
-    host=settings.SMTP_HOST,
-    port=settings.SMTP_PORT,
-    user=settings.SMTP_USER,
-    password=settings.SMTP_PASSWORD,
-    use_tls=settings.SMTP_USE_TLS,
-)
 
-notificador.enviar(
-    assunto="Teste SMTP - monitor-data-corte",
-    destinatarios=settings.notification_DESTINATARIOS,
-    corpo_html="<html><body><h2>Teste de envio SMTP</h2><p>Se este e-mail chegou, a configuração SMTP funcionou.</p></body></html>",
-)
+def criar_email():
+    mensagem = MIMEMultipart("alternative")
+    mensagem["Subject"] = "Teste SMTP - PixCard"
+    mensagem["From"] = settings.SMTP_USER
+    mensagem["To"] = EMAIL_TO
 
-print(f"E-mail enviado para: {settings.notification_DESTINATARIOS}")
+    texto = """
+Olá,
+
+Este é um teste de envio SMTP usando Office 365.
+
+Se este e-mail chegou, a configuração funcionou.
+
+Atenciosamente,
+Sistema PixCard
+"""
+
+    html = """
+<html>
+  <body>
+    <h2>Teste SMTP - PixCard</h2>
+    <p>Este é um teste de envio SMTP usando Office 365.</p>
+    <p><strong>Se este e-mail chegou, a configuração funcionou.</strong></p>
+    <hr>
+    <p>Sistema PixCard</p>
+  </body>
+</html>
+"""
+
+    mensagem.attach(MIMEText(texto, "plain", "utf-8"))
+    mensagem.attach(MIMEText(html, "html", "utf-8"))
+
+    return mensagem
+
+
+def testar_smtp():
+    mensagem = criar_email()
+
+    print("Iniciando teste SMTP...")
+    print(f"Servidor: {settings.SMTP_HOST}:{settings.SMTP_PORT}")
+    print(f"Usuário: {settings.SMTP_USER}")
+    print(f"Destinatário: {EMAIL_TO}")
+
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as smtp:
+            smtp.set_debuglevel(1)
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.ehlo()
+            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            smtp.sendmail(settings.SMTP_USER, [EMAIL_TO], mensagem.as_string())
+            print("E-mail enviado com sucesso!")
+
+    except smtplib.SMTPAuthenticationError as erro:
+        print("Erro de autenticação.")
+        print("Possíveis causas: senha errada, SMTP AUTH desabilitado, MFA ou bloqueio no Office 365.")
+        print(erro)
+
+    except smtplib.SMTPException as erro:
+        print("Erro SMTP.")
+        print(erro)
+
+    except Exception as erro:
+        print(f"Erro inesperado: {type(erro).__name__}: {erro}")
+
+
+if __name__ == "__main__":
+    testar_smtp()
