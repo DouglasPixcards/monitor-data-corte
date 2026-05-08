@@ -24,7 +24,7 @@ class Settings:
     SMTP_USE_TLS: bool = _bool(os.getenv("SMTP_USE_TLS"), True)
     notification_DESTINATARIOS: list[str] = [
         e.strip()
-        for e in os.getenv("notification_DESTINATARIOS", "").split(",")
+        for e in os.getenv("NOTIFICACAO_DESTINATARIOS", "").split(",")
         if e.strip()
     ]
 

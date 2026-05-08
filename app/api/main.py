@@ -108,7 +108,7 @@ def testar_smtp() -> dict:
     notificador = EmailSMTPNotificador(
         host=settings.SMTP_HOST,
         port=settings.SMTP_PORT,
-        user=settings.SMTP_USER,
+        user=settings.SMTP_USER, 
         password=settings.SMTP_PASSWORD,
         use_tls=settings.SMTP_USE_TLS,
     )
