@@ -4,6 +4,8 @@ from enum import Enum
 class AuthType(str, Enum):
     CERTIFICATE = "certificate"
     LOGIN_PASSWORD = "login_password"
+    TWO_STEP = "two_step"
+    BLUR_REVEAL = "blur_reveal"
 
 
 class CollectionStatus(str, Enum):

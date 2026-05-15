@@ -26,6 +26,7 @@ logging.config.dictConfig({
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.loader import load_processadoras_config
 from app.core.settings import settings
 from app.services.comparador_service import ComparadorService
 from app.services.notification.smtp import EmailSMTPNotificador
@@ -36,6 +37,7 @@ from app.storage.file_storage import (
     FileEventoRepository,
     FileExecucaoRepository,
 )
+from app.utils.dates import normalizar_data_corte
 
 logger = logging.getLogger(__name__)
 
@@ -124,19 +126,42 @@ def testar_smtp() -> dict:
     return {"status": "ok", "destinatarios": settings.notification_DESTINATARIOS}
 
 
+def _executar_uma_processadora(processadora: str) -> dict:
+    execucao = _build_orchestrator().executar(processadora)
+    return {
+        "id": execucao.id,
+        "processadora": execucao.processadora,
+        "status": execucao.status,
+        "executada_em": execucao.executada_em,
+        "total_convenios": execucao.total_convenios,
+        "success_count": execucao.success_count,
+        "error_count": execucao.error_count,
+    }
+
+
 @app.post("/coletas/{processadora}/executar")
-def executar_coleta(processadora: str) -> dict:
-    try:
-        execucao = _build_orchestrator().executar(processadora)
-        return {
-            "id": execucao.id,
-            "processadora": execucao.processadora,
-            "status": execucao.status,
-            "executada_em": execucao.executada_em,
-            "total_convenios": execucao.total_convenios,
-            "success_count": execucao.success_count,
-            "error_count": execucao.error_count,
+def executar_coleta(processadora: str):
+    if processadora == "all":
+        config = load_processadoras_config()
+        convenios_config = config["convenios"]
+
+        # Só processa processadoras que têm ao menos um convênio configurado
+        processadoras_ativas = {
+            cfg["processadora"] for cfg in convenios_config.values()
         }
+
+        resultados = []
+        for proc_key in sorted(processadoras_ativas):
+            try:
+                resultados.append(_executar_uma_processadora(proc_key))
+            except Exception as e:
+                logger.exception("Falha ao executar coleta para %s", proc_key)
+                resultados.append({"processadora": proc_key, "status": "erro", "erro": str(e)})
+
+        return resultados
+
+    try:
+        return _executar_uma_processadora(processadora)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception:
@@ -150,6 +175,63 @@ def listar_execucoes(processadora: str) -> list[dict]:
     return [asdict(e) for e in repo.listar(processadora)]
 
 
+@app.get("/convenios")
+def listar_convenios() -> list[dict]:
+    config = load_processadoras_config()
+    convenios_config = config["convenios"]
+
+    execucao_repo = FileExecucaoRepository(settings.STORAGE_PATH)
+    dados_repo = FileDadosCorteRepository(settings.STORAGE_PATH)
+
+    # Carrega os dados mais recentes de cada processadora (uma única vez por processadora)
+    dados_por_convenio: dict[str, list] = {}
+    processadoras_carregadas: set[str] = set()
+
+    for convenio_cfg in convenios_config.values():
+        processadora_key = convenio_cfg["processadora"]
+        if processadora_key in processadoras_carregadas:
+            continue
+        processadoras_carregadas.add(processadora_key)
+
+        ultima = execucao_repo.buscar_ultima_ok(processadora_key)
+        if not ultima:
+            continue
+
+        for d in dados_repo.buscar_por_execucao(ultima.id):
+            dados_por_convenio.setdefault(d.convenio_key, []).append(d)
+
+    # Monta a tabela com todos os convênios, com ou sem dados
+    resultado = []
+    for convenio_key, convenio_cfg in convenios_config.items():
+        processadora = convenio_cfg["processadora"]
+        nome = convenio_cfg.get("nome", convenio_key)
+        dados = dados_por_convenio.get(convenio_key, [])
+
+        if not dados:
+            resultado.append({
+                "convenio_key": convenio_key,
+                "convenio_nome": nome,
+                "processadora": processadora,
+                "folha": None,
+                "mes_atual": None,
+                "data_corte": None,
+                "coletado_em": None,
+            })
+        else:
+            for d in dados:
+                resultado.append({
+                    "convenio_key": convenio_key,
+                    "convenio_nome": nome,
+                    "processadora": processadora,
+                    "folha": d.folha,
+                    "mes_atual": d.mes_atual,
+                    "data_corte": normalizar_data_corte(d.data_corte, d.mes_atual, d.coletado_em),
+                    "coletado_em": d.coletado_em,
+                })
+
+    return resultado
+
+
 @app.get("/coletas/{processadora}/dados")
 def obter_dados_atuais(processadora: str) -> list[dict]:
     execucao_repo = FileExecucaoRepository(settings.STORAGE_PATH)
@@ -157,4 +239,9 @@ def obter_dados_atuais(processadora: str) -> list[dict]:
     ultima = execucao_repo.buscar_ultima_ok(processadora)
     if not ultima:
         return []
-    return [asdict(d) for d in dados_repo.buscar_por_execucao(ultima.id)]
+    resultado = []
+    for d in dados_repo.buscar_por_execucao(ultima.id):
+        d_dict = asdict(d)
+        d_dict["data_corte"] = normalizar_data_corte(d.data_corte, d.mes_atual, d.coletado_em)
+        resultado.append(d_dict)
+    return resultado
