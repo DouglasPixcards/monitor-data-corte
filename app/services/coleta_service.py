@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import logging
 
+from app.auth.blur_reveal_auth import BlurRevealAuthStrategy
 from app.auth.certificate_auth import CertificateAuthStrategy
+from app.auth.two_step_auth import TwoStepAuthStrategy
 from app.auth.user_pass_auth import LoginPasswordAuthStrategy
-from app.core.loader import load_processadoras_config
-from app.scrapers.consigfacil.scraper import ConsigFacilScraper
-from app.scrapers.safeconsig.scraper import SafeConsigScraper
-from app.scrapers.consigup.scraper import ConsigUpScraper
+from app.config.credential_loader import CredentialNotFoundError, load_credentials
+from app.config.portal_registry import get_scraper_class
 from app.core.enums import AuthType, CollectionStatus
+from app.core.loader import load_processadoras_config
+from app.services.storage_helpers import now_iso
+from app.utils.dates import normalizar_data_corte
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +22,29 @@ def build_auth_strategy(processadora_config: dict, convenio_config: dict):
     if auth_type == AuthType.CERTIFICATE:
         return CertificateAuthStrategy()
 
-    if auth_type == AuthType.LOGIN_PASSWORD:
-        return LoginPasswordAuthStrategy(
-            username=convenio_config["credentials"]["username"],
-            password=convenio_config["credentials"]["password"],
-            selectors=processadora_config["selectors"],
-        )
+    if auth_type in (AuthType.LOGIN_PASSWORD, AuthType.TWO_STEP, AuthType.BLUR_REVEAL):
+        # Suporta duas formas de credenciais:
+        # 1. Legada: credentials.username / credentials.password direto no JSON (consigup/muana)
+        # 2. Nova: credential_env_key -> lê do .env via credential_loader
+        credentials = convenio_config.get("credentials")
+        if credentials:
+            username = credentials["username"]
+            password = credentials["password"]
+        else:
+            env_key = convenio_config.get("credential_env_key")
+            if not env_key:
+                raise ValueError(
+                    f"Convênio {convenio_config.get('nome')!r} não tem 'credentials' nem 'credential_env_key'."
+                )
+            portal, convenio_key = env_key.split("_", 1)
+            username, password = load_credentials(portal, convenio_key)
+
+        selectors = processadora_config["selectors"]
+        if auth_type == AuthType.TWO_STEP:
+            return TwoStepAuthStrategy(username=username, password=password, selectors=selectors)
+        if auth_type == AuthType.BLUR_REVEAL:
+            return BlurRevealAuthStrategy(username=username, password=password, selectors=selectors)
+        return LoginPasswordAuthStrategy(username=username, password=password, selectors=selectors)
 
     raise ValueError(f"Tipo de autenticação não suportado: {auth_type}")
 
@@ -35,28 +55,12 @@ def build_scraper(
     convenio_config: dict,
     auth_strategy,
 ):
-    if processadora_key == "consigfacil":
-        return ConsigFacilScraper(
-            processadora_config=processadora_config,
-            convenio_config=convenio_config,
-            auth_strategy=auth_strategy,
-        )
-
-    if processadora_key == "safeconsig":
-        return SafeConsigScraper(
-            processadora_config=processadora_config,
-            convenio_config=convenio_config,
-            auth_strategy=auth_strategy,
-        )
-    
-    if processadora_key == "consigup":
-        return ConsigUpScraper(
-            processadora_config=processadora_config,
-            convenio_config=convenio_config,
-            auth_strategy=auth_strategy,
-        )
-
-    raise ValueError(f"Scraper não suportado para processadora: {processadora_key}")
+    scraper_class = get_scraper_class(processadora_key)
+    return scraper_class(
+        processadora_config=processadora_config,
+        convenio_config=convenio_config,
+        auth_strategy=auth_strategy,
+    )
 
 
 def executar_coleta(convenio_key: str) -> dict:
@@ -76,12 +80,23 @@ def executar_coleta(convenio_key: str) -> dict:
 
     resultado = scraper.run()
 
+    coletado_em = now_iso()
+    dados_normalizados = [
+        {
+            **d,
+            "data_corte": normalizar_data_corte(
+                d.get("data_corte"), d.get("mes_atual"), coletado_em
+            ),
+        }
+        for d in resultado.get("dados", [])
+    ]
+
     return {
         "convenio_key": convenio_key,
         "processadora": processadora_key,
         "convenio": convenio_config.get("nome"),
         "status": resultado.get("status"),
-        "dados": resultado.get("dados", []),
+        "dados": dados_normalizados,
         "erro": resultado.get("erro"),
     }
 
@@ -132,7 +147,19 @@ def executar_coleta_lote(processadora_key: str) -> dict:
     records_consolidados: list[dict] = []
 
     for convenio_key, convenio_config in convenios_da_processadora.items():
-        auth_strategy = build_auth_strategy(processadora_config, convenio_config)
+        try:
+            auth_strategy = build_auth_strategy(processadora_config, convenio_config)
+        except CredentialNotFoundError as e:
+            logger.error("Credenciais ausentes para %s: %s", convenio_key, e)
+            resultados_convenios.append({
+                "convenio_key": convenio_key,
+                "convenio_nome": convenio_config.get("nome"),
+                "status": "erro",
+                "records_count": 0,
+                "erro": str(e),
+                "dados": [],
+            })
+            continue
 
         scraper = build_scraper(
             processadora_key=processadora_key,
@@ -163,13 +190,16 @@ def executar_coleta_lote(processadora_key: str) -> dict:
             )
             continue
 
+        coletado_em = now_iso()
         for record in resultado_convenio["dados"]:
             records_consolidados.append({
                 "convenio_key": convenio_key,
                 "convenio_nome": convenio_config.get("nome"),
                 "folha": record.get("folha"),
                 "mes_atual": record.get("mes_atual"),
-                "data_corte": record.get("data_corte"),
+                "data_corte": normalizar_data_corte(
+                    record.get("data_corte"), record.get("mes_atual"), coletado_em
+                ),
             })
 
     status_lote = _calcular_status_lote(resultados_convenios)

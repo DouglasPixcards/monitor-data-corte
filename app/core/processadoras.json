@@ -13,21 +13,83 @@
       "auth_type": "login_password",
       "uses_chrome_channel": false,
       "selectors": {
-        "username": {
-          "type": "role",
-          "role": "textbox",
-          "name": "Usuário"
-        },
-        "password": {
-          "type": "role",
-          "role": "textbox",
-          "name": "Senha"
-        },
-        "submit": {
-          "type": "role",
-          "role": "button",
-          "name": "Entrar"
-        }
+        "username": { "type": "role", "role": "textbox", "name": "Usuário" },
+        "password": { "type": "role", "role": "textbox", "name": "Senha" },
+        "submit":   { "type": "role", "role": "button",  "name": "Entrar" }
+      }
+    },
+    "consigi": {
+      "auth_type": "login_password",
+      "uses_chrome_channel": false,
+      "selectors": {
+        "username": { "type": "css", "value": "#username" },
+        "password": { "type": "css", "value": "#password" },
+        "submit":   { "type": "css", "value": "button:has-text('Entrar'),button[type='submit']" }
+      }
+    },
+    "konexia": {
+      "auth_type": "login_password",
+      "uses_chrome_channel": false,
+      "selectors": {
+        "username": { "type": "css", "value": "#username" },
+        "password": { "type": "css", "value": "#password" },
+        "submit":   { "type": "css", "value": "button:has-text('Entrar'),button[type='submit']" }
+      }
+    },
+    "pbconsig": {
+      "auth_type": "login_password",
+      "uses_chrome_channel": false,
+      "selectors": {
+        "username": { "type": "css", "value": "#username" },
+        "password": { "type": "css", "value": "#password" },
+        "submit":   { "type": "css", "value": "#kc-login" }
+      }
+    },
+    "proconsig": {
+      "auth_type": "login_password",
+      "uses_chrome_channel": false,
+      "selectors": {
+        "username": { "type": "css", "value": "#cpf" },
+        "password": { "type": "css", "value": "input[name='senha']" },
+        "submit":   { "type": "css", "value": "button[type='submit']" }
+      }
+    },
+    "consiglog": {
+      "auth_type": "two_step",
+      "uses_chrome_channel": false,
+      "selectors": {
+        "step1_username": { "type": "css", "value": "#txtLogin" },
+        "step1_submit":   { "type": "css", "value": "#Entrar" },
+        "step2_password": { "type": "css", "value": "#txtSenha" },
+        "step2_submit":   { "type": "css", "value": "#Entrar" }
+      }
+    },
+    "fasitec": {
+      "auth_type": "blur_reveal",
+      "uses_chrome_channel": false,
+      "selectors": {
+        "username": { "type": "css", "value": "#txtLogin" },
+        "password": { "type": "css", "value": "#txtSenha" },
+        "submit":   { "type": "css", "value": "#cmdUISubmit" }
+      }
+    },
+    "digitalconsig": {
+      "auth_type": "login_password",
+      "uses_chrome_channel": false,
+      "selectors": {
+        "username": { "type": "css", "value": "#txtLogin" },
+        "password": { "type": "css", "value": "#txtSenha" },
+        "submit":   { "type": "css", "value": "#Entrar" }
+      }
+    },
+    "consignet": {
+      "auth_type": "two_step",
+      "uses_chrome_channel": false,
+      "selectors": {
+        "step1_username": { "type": "css", "value": "#login-username" },
+        "step1_submit":   { "type": "css", "value": "#btn-continue" },
+        "step2_password": { "type": "css", "value": "#login-password" },
+        "step2_submit":   { "type": "css", "value": "[id='btn-log in']" }
       }
     }
   },
@@ -85,11 +147,98 @@
     "muana": {
       "nome": "PREF DE MUANA - PA",
       "processadora": "consigup",
-      "credentials": {
-        "username": "SEU_USER",
-        "password": "SUA_SENHA"
-      },
+      "credential_env_key": "CONSIGUP_MUANA",
       "base_url": "https://sistema.consigup.com.br/Login.aspx"
+    },
+    "contagem": {
+      "nome": "Contagem",
+      "processadora": "consigi",
+      "credential_env_key": "CONSIGI_CONTAGEM",
+      "base_url": "https://consigi.com.br/login.xhtml"
+    },
+    "paraiba": {
+      "nome": "Paraíba",
+      "processadora": "pbconsig",
+      "credential_env_key": "PBCONSIG_PARAIBA",
+      "base_url": "https://sso.codata.pb.gov.br/auth/realms/acesso_restrito/protocol/openid-connect/auth?client_id=pbconsig&redirect_uri=https%3A%2F%2Fconsignataria.pbconsig.pb.gov.br%2Flogin&response_mode=fragment&response_type=code&scope=openid"
+    },
+    "planaltina": {
+      "nome": "Planaltina",
+      "processadora": "konexia",
+      "credential_env_key": "KONEXIA_PLANALTINA",
+      "base_url": "https://konexia-it.com/login.xhtml"
+    },
+    "guarulhos": {
+      "nome": "Guarulhos",
+      "processadora": "proconsig",
+      "credential_env_key": "PROCONSIG_GUARULHOS",
+      "base_url": "https://proconsig.com.br/login"
+    },
+    "cotia_sp": {
+      "nome": "Cotia-SP",
+      "processadora": "consiglog",
+      "credential_env_key": "CONSIGLOG_COTIA_SP",
+      "base_url": "https://saec.consiglog.com.br/Login.aspx"
+    },
+    "duque_de_caxias_rj": {
+      "nome": "Duque de Caxias-RJ",
+      "processadora": "consiglog",
+      "credential_env_key": "CONSIGLOG_DUQUE_DE_CAXIAS_RJ",
+      "base_url": "https://saec.consiglog.com.br/Login.aspx"
+    },
+    "pilar": {
+      "nome": "Pilar",
+      "processadora": "fasitec",
+      "credential_env_key": "FASITEC_PILAR",
+      "base_url": "https://sicon.grupofasitec.com.br/Login.aspx"
+    },
+    "varzea_grande": {
+      "nome": "Várzea Grande",
+      "processadora": "digitalconsig",
+      "credential_env_key": "DIGITALCONSIG_VARZEA_GRANDE",
+      "base_url": "https://sistema.digitalconsig.com.br/"
+    },
+    "vera": {
+      "nome": "Vera",
+      "processadora": "digitalconsig",
+      "credential_env_key": "DIGITALCONSIG_VERA",
+      "base_url": "https://sistema.digitalconsig.com.br/"
+    },
+    "defensoria": {
+      "nome": "Defensoria",
+      "processadora": "consignet",
+      "credential_env_key": "CONSIGNET_DEFENSORIA",
+      "base_url": "https://www.www1.consignet.com.br/auth/login"
+    },
+    "maringa": {
+      "nome": "Maringá",
+      "processadora": "consignet",
+      "credential_env_key": "CONSIGNET_MARINGA",
+      "base_url": "https://www.www1.consignet.com.br/auth/login"
+    },
+    "maringa_prev": {
+      "nome": "Maringá-Prev",
+      "processadora": "consignet",
+      "credential_env_key": "CONSIGNET_MARINGA_PREV",
+      "base_url": "https://www.www1.consignet.com.br/auth/login"
+    },
+    "navegantes": {
+      "nome": "Navegantes",
+      "processadora": "consignet",
+      "credential_env_key": "CONSIGNET_NAVEGANTES",
+      "base_url": "https://www.www1.consignet.com.br/auth/login"
+    },
+    "rancharia": {
+      "nome": "Rancharia",
+      "processadora": "consignet",
+      "credential_env_key": "CONSIGNET_RANCHARIA",
+      "base_url": "https://www.www1.consignet.com.br/auth/login"
+    },
+    "vilhena": {
+      "nome": "Vilhena",
+      "processadora": "consignet",
+      "credential_env_key": "CONSIGNET_VILHENA",
+      "base_url": "https://www.www1.consignet.com.br/auth/login"
     }
   }
 }
