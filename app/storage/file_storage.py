@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import asdict
+from datetime import date, timedelta
 from pathlib import Path
 
 from app.core.enums import CollectionStatus
@@ -86,11 +87,31 @@ class FileEventoRepository(EventoRepository):
             return
         groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
         for e in eventos:
-            date = e.detectado_em[:10]
-            groups[(e.processadora, date)].append(asdict(e))
-        for (processadora, date), records in groups.items():
-            path = self._path(processadora, date)
+            dia = e.detectado_em[:10]
+            groups[(e.processadora, dia)].append(asdict(e))
+        for (processadora, dia), records in groups.items():
+            path = self._path(processadora, dia)
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8") as f:
                 for r in records:
                     f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    def listar(self, processadora: str, dias: int = 30) -> list[Evento]:
+        eventos: list[Evento] = []
+        hoje = date.today()
+        for i in range(dias):
+            dia = str(hoje - timedelta(days=i))
+            path = self._path(processadora, dia)
+            if not path.exists():
+                continue
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            dados = json.loads(line)
+                            dados["tipo"] = dados.get("tipo", "")
+                            eventos.append(Evento(**dados))
+                        except Exception:
+                            pass
+        return sorted(eventos, key=lambda e: e.detectado_em, reverse=True)

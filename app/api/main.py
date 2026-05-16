@@ -23,7 +23,10 @@ logging.config.dictConfig({
     "root": {"level": "INFO", "handlers": ["console"]},
 })
 
-from fastapi import FastAPI, HTTPException
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.loader import load_processadoras_config
@@ -143,22 +146,25 @@ def _executar_uma_processadora(processadora: str) -> dict:
 def executar_coleta(processadora: str):
     if processadora == "all":
         config = load_processadoras_config()
-        convenios_config = config["convenios"]
+        processadoras_ativas = sorted({
+            cfg["processadora"] for cfg in config["convenios"].values()
+        })
 
-        # Só processa processadoras que têm ao menos um convênio configurado
-        processadoras_ativas = {
-            cfg["processadora"] for cfg in convenios_config.values()
-        }
+        resultados: list[dict] = []
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures = {
+                pool.submit(_executar_uma_processadora, proc_key): proc_key
+                for proc_key in processadoras_ativas
+            }
+            for future in as_completed(futures):
+                proc_key = futures[future]
+                try:
+                    resultados.append(future.result())
+                except Exception as e:
+                    logger.exception("Falha ao executar coleta para %s", proc_key)
+                    resultados.append({"processadora": proc_key, "status": "erro", "erro": str(e)})
 
-        resultados = []
-        for proc_key in sorted(processadoras_ativas):
-            try:
-                resultados.append(_executar_uma_processadora(proc_key))
-            except Exception as e:
-                logger.exception("Falha ao executar coleta para %s", proc_key)
-                resultados.append({"processadora": proc_key, "status": "erro", "erro": str(e)})
-
-        return resultados
+        return sorted(resultados, key=lambda r: r["processadora"])
 
     try:
         return _executar_uma_processadora(processadora)
@@ -176,7 +182,10 @@ def listar_execucoes(processadora: str) -> list[dict]:
 
 
 @app.get("/convenios")
-def listar_convenios() -> list[dict]:
+def listar_convenios(
+    processadora: Optional[str] = Query(None, description="Filtrar por processadora"),
+    sem_dados: bool = Query(False, description="Retornar apenas convênios sem dados coletados"),
+) -> list[dict]:
     config = load_processadoras_config()
     convenios_config = config["convenios"]
 
@@ -229,7 +238,23 @@ def listar_convenios() -> list[dict]:
                     "coletado_em": d.coletado_em,
                 })
 
+    if processadora:
+        resultado = [r for r in resultado if r["processadora"] == processadora]
+
+    if sem_dados:
+        resultado = [r for r in resultado if r["data_corte"] is None]
+
     return resultado
+
+
+@app.get("/coletas/{processadora}/eventos")
+def listar_eventos(
+    processadora: str,
+    dias: int = Query(30, ge=1, le=365, description="Janela de dias para buscar eventos"),
+) -> list[dict]:
+    repo = FileEventoRepository(settings.STORAGE_PATH)
+    eventos = repo.listar(processadora, dias=dias)
+    return [asdict(e) for e in eventos]
 
 
 @app.get("/coletas/{processadora}/dados")

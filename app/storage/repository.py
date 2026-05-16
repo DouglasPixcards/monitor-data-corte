@@ -27,3 +27,6 @@ class DadosCorteRepository(ABC):
 class EventoRepository(ABC):
     @abstractmethod
     def salvar_lote(self, eventos: list[Evento]) -> None: ...
+
+    @abstractmethod
+    def listar(self, processadora: str, dias: int = 30) -> list[Evento]: ...
