@@ -18,27 +18,27 @@ def criar_email():
     mensagem["To"] = EMAIL_TO
 
     texto = """
-Olá,
+                Olá,
 
-Este é um teste de envio SMTP usando Office 365.
+                Este é um teste de envio SMTP usando Office 365.
 
-Se este e-mail chegou, a configuração funcionou.
+                Se este e-mail chegou, a configuração funcionou.
 
-Atenciosamente,
-Sistema PixCard
-"""
+                Atenciosamente,
+                Sistema PixCard
+            """
 
     html = """
-<html>
-  <body>
-    <h2>Teste SMTP - PixCard</h2>
-    <p>Este é um teste de envio SMTP usando Office 365.</p>
-    <p><strong>Se este e-mail chegou, a configuração funcionou.</strong></p>
-    <hr>
-    <p>Sistema PixCard</p>
-  </body>
-</html>
-"""
+                <html>
+                <body>
+                    <h2>Teste SMTP - PixCard</h2>
+                    <p>Este é um teste de envio SMTP usando Office 365.</p>
+                    <p><strong>Se este e-mail chegou, a configuração funcionou.</strong></p>
+                    <hr>
+                    <p>Sistema PixCard</p>
+                </body>
+                </html>
+            """
 
     mensagem.attach(MIMEText(texto, "plain", "utf-8"))
     mensagem.attach(MIMEText(html, "html", "utf-8"))
