@@ -128,7 +128,7 @@ def _calcular_status_lote(resultados_convenios: list[dict]) -> str:
     return CollectionStatus.PARTIAL_SUCCESS
 
 
-def executar_coleta_lote(processadora_key: str) -> dict:
+def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = None) -> dict:
     config = load_processadoras_config()
 
     processadoras_config = config["processadoras"]
@@ -142,6 +142,13 @@ def executar_coleta_lote(processadora_key: str) -> dict:
         processadora_key=processadora_key,
         convenios_config=convenios_config,
     )
+
+    if convenio_filter:
+        if convenio_filter not in convenios_da_processadora:
+            raise ValueError(
+                f"Convênio {convenio_filter!r} não pertence à processadora {processadora_key!r}"
+            )
+        convenios_da_processadora = {convenio_filter: convenios_da_processadora[convenio_filter]}
 
     resultados_convenios: list[dict] = []
     records_consolidados: list[dict] = []

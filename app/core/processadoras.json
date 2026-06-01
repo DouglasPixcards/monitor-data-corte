@@ -160,7 +160,8 @@
       "nome": "Paraíba",
       "processadora": "pbconsig",
       "credential_env_key": "PBCONSIG_PARAIBA",
-      "base_url": "https://sso.codata.pb.gov.br/auth/realms/acesso_restrito/protocol/openid-connect/auth?client_id=pbconsig&redirect_uri=https%3A%2F%2Fconsignataria.pbconsig.pb.gov.br%2Flogin&response_mode=fragment&response_type=code&scope=openid"
+      "base_url": "https://sso.codata.pb.gov.br/auth/realms/acesso_restrito/protocol/openid-connect/auth?client_id=pbconsig&redirect_uri=https%3A%2F%2Fconsignataria.pbconsig.pb.gov.br%2Flogin&response_mode=fragment&response_type=code&scope=openid",
+      "data_corte_default": "01"
     },
     "planaltina": {
       "nome": "Planaltina",
@@ -184,7 +185,15 @@
       "nome": "Duque de Caxias-RJ",
       "processadora": "consiglog",
       "credential_env_key": "CONSIGLOG_DUQUE_DE_CAXIAS_RJ",
-      "base_url": "https://saec.consiglog.com.br/Login.aspx"
+      "base_url": "https://saec.consiglog.com.br/Login.aspx",
+      "orgao_sigla": "RJ - DUQUE CAXIAS"
+    },
+    "IPMDC": {
+      "nome": "IPMDC",
+      "processadora": "consiglog",
+      "credential_env_key": "CONSIGLOG_DUQUE_DE_CAXIAS_RJ",
+      "base_url": "https://saec.consiglog.com.br/Login.aspx",
+      "orgao_sigla": "RJ - IPMDC"
     },
     "pilar": {
       "nome": "Pilar",
@@ -196,49 +205,57 @@
       "nome": "Várzea Grande",
       "processadora": "digitalconsig",
       "credential_env_key": "DIGITALCONSIG_VARZEA_GRANDE",
-      "base_url": "https://sistema.digitalconsig.com.br/"
+      "base_url": "https://sistema.digitalconsig.com.br/",
+      "orgao_texto": "Varzea Grande"
     },
     "vera": {
       "nome": "Vera",
       "processadora": "digitalconsig",
       "credential_env_key": "DIGITALCONSIG_VERA",
-      "base_url": "https://sistema.digitalconsig.com.br/"
+      "base_url": "https://sistema.digitalconsig.com.br/",
+      "orgao_texto": "de Vera"
     },
     "defensoria": {
       "nome": "Defensoria",
       "processadora": "consignet",
       "credential_env_key": "CONSIGNET_DEFENSORIA",
-      "base_url": "https://www.www1.consignet.com.br/auth/login"
+      "base_url": "https://www.www1.consignet.com.br/auth/login",
+      "afiliacao": "DPU / MONETARIE CARTAO BENEFICIO"
     },
     "maringa": {
       "nome": "Maringá",
       "processadora": "consignet",
       "credential_env_key": "CONSIGNET_MARINGA",
-      "base_url": "https://www.www1.consignet.com.br/auth/login"
+      "base_url": "https://www.www1.consignet.com.br/auth/login",
+      "afiliacao": "PREF. MARINGA-PR / PIXCARD"
     },
     "maringa_prev": {
       "nome": "Maringá-Prev",
       "processadora": "consignet",
       "credential_env_key": "CONSIGNET_MARINGA_PREV",
-      "base_url": "https://www.www1.consignet.com.br/auth/login"
+      "base_url": "https://www.www1.consignet.com.br/auth/login",
+      "afiliacao": "MARINGAPREV / PIX CARD COMPRA"
     },
     "navegantes": {
       "nome": "Navegantes",
       "processadora": "consignet",
       "credential_env_key": "CONSIGNET_NAVEGANTES",
-      "base_url": "https://www.www1.consignet.com.br/auth/login"
+      "base_url": "https://www.www1.consignet.com.br/auth/login",
+      "afiliacao": "PREF. NAVEGANTES - SC / PIXCARD CARTAO CREDITO"
     },
     "rancharia": {
       "nome": "Rancharia",
       "processadora": "consignet",
       "credential_env_key": "CONSIGNET_RANCHARIA",
-      "base_url": "https://www.www1.consignet.com.br/auth/login"
+      "base_url": "https://www.www1.consignet.com.br/auth/login",
+      "afiliacao": "RANCHARIA / PIX CARD CARTAO COMPRA"
     },
     "vilhena": {
       "nome": "Vilhena",
       "processadora": "consignet",
       "credential_env_key": "CONSIGNET_VILHENA",
-      "base_url": "https://www.www1.consignet.com.br/auth/login"
+      "base_url": "https://www.www1.consignet.com.br/auth/login",
+      "afiliacao": "PREF. VILHENA - RO / PIX CARD CARTAO SAQUE"
     }
   }
 }

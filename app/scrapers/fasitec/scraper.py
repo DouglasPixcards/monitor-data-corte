@@ -41,7 +41,6 @@ class FasitecScraper(BaseScraper):
         timeout = self.timeout
 
         self.page.goto(url, wait_until="domcontentloaded", timeout=timeout)
-        self.page.wait_for_timeout(2000)
 
         # Etapa 1: preenche username
         username_field = self.page.locator(selectors["username"]["value"])
@@ -52,25 +51,20 @@ class FasitecScraper(BaseScraper):
         # O server não valida o token — forçamos o enable via JS.
         self.page.evaluate("document.getElementById('btnContinuar').removeAttribute('disabled')")
         self.page.locator("#btnContinuar").click()
-        self.page.wait_for_timeout(2000)
 
-        # Etapa 2: campo senha aparece após postback
+        # Etapa 2: campo senha aparece após postback — espera o elemento diretamente
         password_field = self.page.locator(selectors["password"]["value"])
         password_field.wait_for(state="visible", timeout=timeout)
         password_field.fill(self.auth_strategy.password)
 
-        # Submit
+        # Submit — aguarda apenas o redirect inicial (domcontentloaded)
+        # O wait pelo link de órgão fica exclusivamente em _selecionar_orgao
         submit = self.page.locator(selectors["submit"]["value"])
         try:
-            with self.page.expect_navigation(wait_until="domcontentloaded", timeout=timeout):
+            with self.page.expect_navigation(wait_until="domcontentloaded", timeout=30000):
                 submit.click()
         except Exception:
-            pass
-
-        try:
-            self.page.wait_for_load_state("networkidle", timeout=min(timeout, 30000))
-        except Exception:
-            logger.debug("[Fasitec] networkidle timeout — continuando. URL: %s", self.page.url)
+            logger.debug("[Fasitec] Navegação após submit não detectada — continuando. URL: %s", self.page.url)
 
         logger.info("[Fasitec] Autenticação concluída. URL: %s", self.page.url)
 
@@ -133,15 +127,12 @@ class FasitecScraper(BaseScraper):
 
     def _selecionar_orgao(self) -> None:
         orgao_link = self.page.locator("a[id*='imgEntrarNome']").first
-        orgao_link.wait_for(state="visible", timeout=self.timeout)
+        orgao_link.wait_for(state="visible", timeout=60000)
         logger.info("[Fasitec] Selecionando órgão: %s", orgao_link.inner_text().strip())
         orgao_link.click()
+        # Substitui wait_for_url + networkidle pelo elemento que será usado na extração
         try:
-            self.page.wait_for_url("**/Inicial/**", timeout=30000)
-        except Exception:
-            pass
-        try:
-            self.page.wait_for_load_state("networkidle", timeout=10000)
+            self.page.locator("#table_config").first.wait_for(state="attached", timeout=30000)
         except Exception:
             pass
         logger.info("[Fasitec] Navegou para: %s", self.page.url)

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import logging.config
+import uuid
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from datetime import datetime, timezone
 
 logging.config.dictConfig({
     "version": 1,
@@ -30,6 +32,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.loader import load_processadoras_config
+from app.core.models import DadoCorte, Execucao
 from app.core.settings import settings
 from app.services.comparador_service import ComparadorService
 from app.services.notification.smtp import EmailSMTPNotificador
@@ -93,7 +96,16 @@ def _build_orchestrator() -> ColetaOrchestrator:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    import os
+    from pathlib import Path
+    storage = Path(settings.STORAGE_PATH)
+    return {
+        "status": "ok",
+        "storage_path_config": settings.STORAGE_PATH,
+        "storage_path_absolute": str(storage.resolve()),
+        "storage_path_exists": storage.exists(),
+        "cwd": os.getcwd(),
+    }
 
 
 @app.post("/notification/testar")
@@ -129,8 +141,20 @@ def testar_smtp() -> dict:
     return {"status": "ok", "destinatarios": settings.notification_DESTINATARIOS}
 
 
-def _executar_uma_processadora(processadora: str) -> dict:
-    execucao = _build_orchestrator().executar(processadora)
+def _resolver_key(key: str, config: dict) -> tuple[str, str | None]:
+    """Resolve {key} como processadora ou convênio.
+
+    Returns: (processadora_key, convenio_filter_or_None)
+    """
+    if key in config["processadoras"]:
+        return key, None
+    if key in config["convenios"]:
+        return config["convenios"][key]["processadora"], key
+    raise HTTPException(status_code=404, detail=f"Processadora ou convênio '{key}' não encontrado.")
+
+
+def _executar_uma_processadora(processadora: str, convenio_filter: str | None = None) -> dict:
+    execucao = _build_orchestrator().executar(processadora, convenio_filter=convenio_filter)
     return {
         "id": execucao.id,
         "processadora": execucao.processadora,
@@ -142,9 +166,10 @@ def _executar_uma_processadora(processadora: str) -> dict:
     }
 
 
-@app.post("/coletas/{processadora}/executar")
-def executar_coleta(processadora: str):
-    if processadora == "all":
+@app.post("/coletas/{key}/executar")
+def executar_coleta(key: str):
+    """Aceita processadora (ex: consigi) ou convênio (ex: contagem) como {key}."""
+    if key == "all":
         config = load_processadoras_config()
         processadoras_ativas = sorted({
             cfg["processadora"] for cfg in config["convenios"].values()
@@ -166,33 +191,48 @@ def executar_coleta(processadora: str):
 
         return sorted(resultados, key=lambda r: r["processadora"])
 
-    try:
-        return _executar_uma_processadora(processadora)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception:
-        logger.exception("Falha ao executar coleta para %s", processadora)
-        raise HTTPException(status_code=500, detail="Falha interna ao executar coleta.")
+    config = load_processadoras_config()
+
+    # Chave é uma processadora conhecida → comportamento original
+    if key in config["processadoras"]:
+        try:
+            return _executar_uma_processadora(key)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except Exception:
+            logger.exception("Falha ao executar coleta para %s", key)
+            raise HTTPException(status_code=500, detail="Falha interna ao executar coleta.")
+
+    # Chave é um convênio → resolve a processadora e filtra
+    if key in config["convenios"]:
+        processadora_key = config["convenios"][key]["processadora"]
+        try:
+            return _executar_uma_processadora(processadora_key, convenio_filter=key)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        except Exception:
+            logger.exception("Falha ao executar coleta para convênio %s", key)
+            raise HTTPException(status_code=500, detail="Falha interna ao executar coleta.")
+
+    raise HTTPException(status_code=404, detail=f"Processadora ou convênio '{key}' não encontrado.")
 
 
-@app.get("/coletas/{processadora}/execucoes")
-def listar_execucoes(processadora: str) -> list[dict]:
+@app.get("/coletas/{key}/execucoes")
+def listar_execucoes(key: str) -> list[dict]:
+    config = load_processadoras_config()
+    processadora_key, _ = _resolver_key(key, config)
     repo = FileExecucaoRepository(settings.STORAGE_PATH)
-    return [asdict(e) for e in repo.listar(processadora)]
+    return [asdict(e) for e in repo.listar(processadora_key)]
 
 
-@app.get("/convenios")
-def listar_convenios(
-    processadora: Optional[str] = Query(None, description="Filtrar por processadora"),
-    sem_dados: bool = Query(False, description="Retornar apenas convênios sem dados coletados"),
-) -> list[dict]:
+def _montar_dados_convenios() -> list[dict]:
+    """Retorna dados de corte mais recentes de todos os convênios (sem filtros)."""
     config = load_processadoras_config()
     convenios_config = config["convenios"]
 
     execucao_repo = FileExecucaoRepository(settings.STORAGE_PATH)
     dados_repo = FileDadosCorteRepository(settings.STORAGE_PATH)
 
-    # Carrega os dados mais recentes de cada processadora (uma única vez por processadora)
     dados_por_convenio: dict[str, list] = {}
     processadoras_carregadas: set[str] = set()
 
@@ -209,21 +249,21 @@ def listar_convenios(
         for d in dados_repo.buscar_por_execucao(ultima.id):
             dados_por_convenio.setdefault(d.convenio_key, []).append(d)
 
-    # Monta a tabela com todos os convênios, com ou sem dados
     resultado = []
     for convenio_key, convenio_cfg in convenios_config.items():
-        processadora = convenio_cfg["processadora"]
+        proc_key = convenio_cfg["processadora"]
         nome = convenio_cfg.get("nome", convenio_key)
         dados = dados_por_convenio.get(convenio_key, [])
 
         if not dados:
+            default = convenio_cfg.get("data_corte_default")
             resultado.append({
                 "convenio_key": convenio_key,
                 "convenio_nome": nome,
-                "processadora": processadora,
+                "processadora": proc_key,
                 "folha": None,
                 "mes_atual": None,
-                "data_corte": None,
+                "data_corte": normalizar_data_corte(default, None, datetime.now(timezone.utc).isoformat()) if default else None,
                 "coletado_em": None,
             })
         else:
@@ -231,12 +271,22 @@ def listar_convenios(
                 resultado.append({
                     "convenio_key": convenio_key,
                     "convenio_nome": nome,
-                    "processadora": processadora,
+                    "processadora": proc_key,
                     "folha": d.folha,
                     "mes_atual": d.mes_atual,
                     "data_corte": normalizar_data_corte(d.data_corte, d.mes_atual, d.coletado_em),
                     "coletado_em": d.coletado_em,
                 })
+
+    return resultado
+
+
+@app.get("/convenios")
+def listar_convenios(
+    processadora: Optional[str] = Query(None, description="Filtrar por processadora"),
+    sem_dados: bool = Query(False, description="Retornar apenas convênios sem dados coletados"),
+) -> list[dict]:
+    resultado = _montar_dados_convenios()
 
     if processadora:
         resultado = [r for r in resultado if r["processadora"] == processadora]
@@ -247,25 +297,85 @@ def listar_convenios(
     return resultado
 
 
-@app.get("/coletas/{processadora}/eventos")
+@app.get("/cortes/atuais")
+def cortes_atuais() -> list[dict]:
+    """Dados de corte mais recentes de todos os convênios, ordenados por nome."""
+    resultado = _montar_dados_convenios()
+    return sorted(resultado, key=lambda r: (r["convenio_nome"] or "").lower())
+
+
+@app.post("/convenios/{key}/data_corte")
+def atualizar_data_corte(key: str, body: dict) -> dict:
+    """Registra manualmente a data de corte de um convênio sem scraper.
+
+    Body: {"data_corte": "01/07/2026"}
+    """
+    config = load_processadoras_config()
+    if key not in config["convenios"]:
+        raise HTTPException(status_code=404, detail=f"Convênio '{key}' não encontrado.")
+
+    data_corte = (body or {}).get("data_corte")
+    if not data_corte:
+        raise HTTPException(status_code=422, detail="Campo 'data_corte' obrigatório.")
+
+    convenio_cfg = config["convenios"][key]
+    processadora_key = convenio_cfg["processadora"]
+    nome = convenio_cfg.get("nome", key)
+    agora = datetime.now(timezone.utc).isoformat()
+
+    execucao_id = str(uuid.uuid4())
+    execucao = Execucao(
+        id=execucao_id,
+        processadora=processadora_key,
+        executada_em=agora,
+        status="ok",
+        total_convenios=1,
+        success_count=1,
+        error_count=0,
+    )
+    dado = DadoCorte(
+        id=str(uuid.uuid4()),
+        execucao_id=execucao_id,
+        convenio_key=key,
+        coletado_em=agora,
+        convenio_nome=nome,
+        data_corte=data_corte,
+    )
+
+    execucao_repo = FileExecucaoRepository(settings.STORAGE_PATH)
+    dados_repo = FileDadosCorteRepository(settings.STORAGE_PATH)
+    execucao_repo.salvar(execucao)
+    dados_repo.salvar_lote([dado])
+
+    logger.info("[manual] %s → data_corte=%r salvo", key, data_corte)
+    return {"status": "ok", "convenio_key": key, "data_corte": data_corte}
+
+
+@app.get("/coletas/{key}/eventos")
 def listar_eventos(
-    processadora: str,
+    key: str,
     dias: int = Query(30, ge=1, le=365, description="Janela de dias para buscar eventos"),
 ) -> list[dict]:
+    config = load_processadoras_config()
+    processadora_key, _ = _resolver_key(key, config)
     repo = FileEventoRepository(settings.STORAGE_PATH)
-    eventos = repo.listar(processadora, dias=dias)
+    eventos = repo.listar(processadora_key, dias=dias)
     return [asdict(e) for e in eventos]
 
 
-@app.get("/coletas/{processadora}/dados")
-def obter_dados_atuais(processadora: str) -> list[dict]:
+@app.get("/coletas/{key}/dados")
+def obter_dados_atuais(key: str) -> list[dict]:
+    config = load_processadoras_config()
+    processadora_key, convenio_filter = _resolver_key(key, config)
     execucao_repo = FileExecucaoRepository(settings.STORAGE_PATH)
     dados_repo = FileDadosCorteRepository(settings.STORAGE_PATH)
-    ultima = execucao_repo.buscar_ultima_ok(processadora)
+    ultima = execucao_repo.buscar_ultima_ok(processadora_key)
     if not ultima:
         return []
     resultado = []
     for d in dados_repo.buscar_por_execucao(ultima.id):
+        if convenio_filter and d.convenio_key != convenio_filter:
+            continue
         d_dict = asdict(d)
         d_dict["data_corte"] = normalizar_data_corte(d.data_corte, d.mes_atual, d.coletado_em)
         resultado.append(d_dict)

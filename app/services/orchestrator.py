@@ -18,7 +18,7 @@ from app.storage.repository import (
 )
 
 
-def executar_coleta_lote(processadora: str) -> dict:
+def executar_coleta_lote(processadora: str, convenio_filter: str | None = None) -> dict:
     """Thin wrapper that defers the scraper import to call time.
 
     Having this name at module level allows tests to patch
@@ -27,7 +27,7 @@ def executar_coleta_lote(processadora: str) -> dict:
     """
     from app.services.coleta_service import executar_coleta_lote as _real  # noqa: PLC0415
 
-    return _real(processadora)
+    return _real(processadora, convenio_filter=convenio_filter)
 
 
 class ColetaOrchestrator:
@@ -47,7 +47,7 @@ class ColetaOrchestrator:
         self._notificador = notificador
         self._destinatarios = destinatarios
 
-    def executar(self, processadora: str) -> Execucao:
+    def executar(self, processadora: str, convenio_filter: str | None = None) -> Execucao:
         # 1. Carregar dados anteriores ANTES de salvar qualquer coisa
         ultima_ok = self._execucao_repo.buscar_ultima_ok(processadora)
         dados_anteriores = (
@@ -55,7 +55,7 @@ class ColetaOrchestrator:
         )
 
         # 2. Rodar scrapers
-        resultado_lote = executar_coleta_lote(processadora)
+        resultado_lote = executar_coleta_lote(processadora, convenio_filter=convenio_filter)
 
         # 3. Salvar execução (erros por convênio extraídos do resultado do lote)
         erros_convenios = [

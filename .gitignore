@@ -29,3 +29,4 @@ __pycache__/
 
 # planilha com credenciais
 links_processadoras.xlsx
+.gstack/

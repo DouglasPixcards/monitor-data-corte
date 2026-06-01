@@ -3,6 +3,11 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
+_MESES_EN: dict[str, int] = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
 
 def normalizar_data_corte(
     data_corte: str | None,
@@ -35,6 +40,15 @@ def normalizar_data_corte(
         d, mo, y = int(m.group(1)), int(m.group(2)), 2000 + int(m.group(3))
         return f"{d:02d}/{mo:02d}/{y}"
 
+    # "10 Jun", "5 Jan" — dia + mês abreviado em inglês (ConsigNet)
+    m = re.fullmatch(r"(\d{1,2})\s+([A-Za-z]{3,})", data_corte)
+    if m:
+        dia = int(m.group(1))
+        mes = _MESES_EN.get(m.group(2).lower()[:3])
+        if mes:
+            ano = _ano_ref(coletado_em)
+            return f"{dia:02d}/{mes:02d}/{ano}"
+
     # Só o dia — infere mês/ano pela regra de negócio
     m = re.fullmatch(r"(\d{1,2})", data_corte)
     if m:
@@ -44,6 +58,15 @@ def normalizar_data_corte(
             return f"{dia:02d}/{mes:02d}/{ano}"
 
     return data_corte
+
+
+def _ano_ref(coletado_em: str | None) -> int:
+    if coletado_em:
+        try:
+            return datetime.fromisoformat(coletado_em.replace("Z", "+00:00")).year
+        except Exception:
+            pass
+    return datetime.now().year
 
 
 def _mes_ano_pelo_dia(dia: int, coletado_em: str | None) -> tuple[int | None, int | None]:

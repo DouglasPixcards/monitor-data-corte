@@ -42,7 +42,7 @@ class FileExecucaoRepository(ExecucaoRepository):
 
     def buscar_ultima_ok(self, processadora: str) -> Execucao | None:
         for e in self.listar(processadora):
-            if e.status == CollectionStatus.OK:
+            if e.status in (CollectionStatus.OK, CollectionStatus.PARTIAL_SUCCESS):
                 return e
         return None
 

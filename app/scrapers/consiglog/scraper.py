@@ -93,10 +93,19 @@ class ConsiglogScraper(BaseScraper):
         return self._extrair_prazos()
 
     def _selecionar_orgao(self) -> None:
-        # Seleciona o primeiro órgão disponível na grade de seleção
-        btn = self.page.locator("[id*='gvOrgao'][id*='imgEntrar']").first
-        btn.wait_for(state="visible", timeout=self.timeout)
-        logger.info("[ConsigLog] Selecionando órgão...")
+        tabela = self.page.locator("table#gvOrgao")
+        tabela.wait_for(state="visible", timeout=self.timeout)
+
+        orgao_sigla = self.convenio_config.get("orgao_sigla")
+        if orgao_sigla:
+            linha = tabela.locator("tr").filter(has_text=orgao_sigla)
+            btn = linha.locator("input[type='image']")
+        else:
+            btn = tabela.locator("input[type='image']").first
+
+        btn.wait_for(state="visible", timeout=10000)
+        logger.info("[ConsigLog] Selecionando órgão: sigla=%r", orgao_sigla)
+
         try:
             with self.page.expect_navigation(wait_until="domcontentloaded", timeout=30000):
                 btn.click()
