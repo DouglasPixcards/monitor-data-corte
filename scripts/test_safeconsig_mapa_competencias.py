@@ -1,4 +1,4 @@
-"""Mapa exploratório de competências — SafeConsig HML.
+"""Mapa exploratório de competências — SafeConsig.
 
 Consulta o endpoint /contrato/mesPrimeiroDesconto/consultar para uma sequência
 de datas e exibe quando a competência retornada muda.
@@ -9,23 +9,21 @@ ATENÇÃO: Este endpoint NÃO retorna data de corte oficial.
          não uma confirmação — do corte. Valide com o portal antes de usar
          como regra oficial.
 
-Configuração (altere as variáveis abaixo ou passe como args):
-    DATA_INICIAL   — primeira data a consultar  (default: 1º do mês atual)
-    DATA_FINAL     — última data a consultar    (default: último dia do mês)
-    HORARIO        — horário usado em todas as consultas (default: "10:00:00")
-
 Uso:
     python scripts/test_safeconsig_mapa_competencias.py
-    python scripts/test_safeconsig_mapa_competencias.py 2025-06-01 2025-06-30 23:30:00
+    python scripts/test_safeconsig_mapa_competencias.py --env-key SAFECONSIG_HML
+    python scripts/test_safeconsig_mapa_competencias.py --env-key SAFECONSIG_PROD_SAOJOAODOSPATOS
+    python scripts/test_safeconsig_mapa_competencias.py --env-key SAFECONSIG_HML 2026-06-01 2026-06-30 23:30:00
 
-Requer no .env:
-    SAFECONSIG_HML_BASE_URL
-    SAFECONSIG_HML_ID_CONVENIO
-    SAFECONSIG_HML_USERNAME
-    SAFECONSIG_HML_PASSWORD
+Requer no .env as variáveis do perfil escolhido:
+    {ENV_KEY}_BASE_URL
+    {ENV_KEY}_ID_CONVENIO
+    {ENV_KEY}_USERNAME
+    {ENV_KEY}_PASSWORD
 """
 from __future__ import annotations
 
+import argparse
 import calendar
 import logging
 import sys
@@ -43,53 +41,79 @@ from app.integrations.processors.base.exceptions import IntegrationError
 from app.integrations.processors.safeconsig.client import SafeConsigClient
 from app.integrations.processors.safeconsig.config import SafeConsigConfig
 
-# ── Configuração ──────────────────────────────────────────────────────────────
 
 def _default_data_inicial() -> str:
     hoje = date.today()
     return hoje.replace(day=1).isoformat()
+
 
 def _default_data_final() -> str:
     hoje = date.today()
     ultimo_dia = calendar.monthrange(hoje.year, hoje.month)[1]
     return hoje.replace(day=ultimo_dia).isoformat()
 
-def _parse_args() -> tuple[str, str, str]:
-    args = sys.argv[1:]
-    data_inicial = args[0] if len(args) > 0 else _default_data_inicial()
-    data_final   = args[1] if len(args) > 1 else _default_data_final()
-    horario      = args[2] if len(args) > 2 else "10:00:00"
-    return data_inicial, data_final, horario
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Mapa de competências SafeConsig.")
+    parser.add_argument(
+        "--env-key",
+        default="SAFECONSIG_HML",
+        metavar="KEY",
+        help="Prefixo das variáveis de ambiente (default: SAFECONSIG_HML)",
+    )
+    parser.add_argument(
+        "data_inicial",
+        nargs="?",
+        default=None,
+        help="Data inicial no formato YYYY-MM-DD (default: 1º do mês atual)",
+    )
+    parser.add_argument(
+        "data_final",
+        nargs="?",
+        default=None,
+        help="Data final no formato YYYY-MM-DD (default: último dia do mês atual)",
+    )
+    parser.add_argument(
+        "horario",
+        nargs="?",
+        default="10:00:00",
+        help="Horário usado em todas as consultas (default: 10:00:00)",
+    )
+    return parser.parse_args()
+
 
 def _iter_datas(data_inicial: str, data_final: str):
     inicio = date.fromisoformat(data_inicial)
-    fim    = date.fromisoformat(data_final)
-    atual  = inicio
+    fim = date.fromisoformat(data_final)
+    atual = inicio
     while atual <= fim:
         yield atual
         atual += timedelta(days=1)
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> int:
-    data_inicial, data_final, horario = _parse_args()
+    args = _parse_args()
+    data_inicial = args.data_inicial or _default_data_inicial()
+    data_final = args.data_final or _default_data_final()
+    horario = args.horario
 
+    print(f"Perfil:   {args.env_key}")
     print(f"Período:  {data_inicial} → {data_final}")
     print(f"Horário:  {horario}")
     print(f"Endpoint: /contrato/mesPrimeiroDesconto/consultar")
     print()
 
     try:
-        config = SafeConsigConfig.from_env("SAFECONSIG_HML")
+        config = SafeConsigConfig.from_env(args.env_key)
     except IntegrationError as exc:
-        print(f"[ERRO] Configuração inválida: {exc}", file=sys.stderr)
+        print(f"[ERRO] Configuração inválida para {args.env_key!r}: {exc}", file=sys.stderr)
         return 1
 
     client = SafeConsigClient(config)
     try:
         client.autenticar()
     except IntegrationError as exc:
-        print(f"[ERRO] Falha na autenticação: {exc}", file=sys.stderr)
+        print(f"[ERRO] Falha na autenticação ({args.env_key}): {exc}", file=sys.stderr)
         return 1
 
     print(f"{'DATA':12}  {'COMPETENCIA':12}  OBSERVAÇÃO")

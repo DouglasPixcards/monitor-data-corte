@@ -1,20 +1,22 @@
-"""Testa autenticação SafeConsig HML.
-
-Requer no .env:
-    SAFECONSIG_HML_BASE_URL
-    SAFECONSIG_HML_ID_CONVENIO
-    SAFECONSIG_HML_USERNAME
-    SAFECONSIG_HML_PASSWORD
+"""Testa autenticação SafeConsig para qualquer perfil configurado no .env.
 
 Uso:
     python scripts/test_safeconsig_auth.py
+    python scripts/test_safeconsig_auth.py --env-key SAFECONSIG_HML
+    python scripts/test_safeconsig_auth.py --env-key SAFECONSIG_PROD_SAOJOAODOSPATOS
+
+Requer no .env as variáveis do perfil escolhido:
+    {ENV_KEY}_BASE_URL
+    {ENV_KEY}_ID_CONVENIO
+    {ENV_KEY}_USERNAME
+    {ENV_KEY}_PASSWORD
 """
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
-# Permite importar app.* a partir da raiz do projeto
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import logging
@@ -28,21 +30,34 @@ from app.integrations.processors.safeconsig.client import SafeConsigClient
 from app.integrations.processors.safeconsig.config import SafeConsigConfig
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Testa autenticação SafeConsig.")
+    parser.add_argument(
+        "--env-key",
+        default="SAFECONSIG_HML",
+        metavar="KEY",
+        help="Prefixo das variáveis de ambiente (default: SAFECONSIG_HML)",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
+    args = _parse_args()
+
     try:
-        config = SafeConsigConfig.from_env("SAFECONSIG_HML")
+        config = SafeConsigConfig.from_env(args.env_key)
     except IntegrationError as exc:
-        print(f"[ERRO] Configuração inválida: {exc}", file=sys.stderr)
+        print(f"[ERRO] Configuração inválida para {args.env_key!r}: {exc}", file=sys.stderr)
         return 1
 
     client = SafeConsigClient(config)
     try:
         client.autenticar()
     except IntegrationError as exc:
-        print(f"[ERRO] Falha na autenticação: {exc}", file=sys.stderr)
+        print(f"[ERRO] Falha na autenticação ({args.env_key}): {exc}", file=sys.stderr)
         return 1
 
-    print("✓ Autenticação SafeConsig HML bem-sucedida.")
+    print(f"✓ Autenticação SafeConsig bem-sucedida. (perfil: {args.env_key})")
     return 0
 
 
