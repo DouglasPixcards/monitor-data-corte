@@ -16,6 +16,11 @@ from app.utils.dates import normalizar_data_corte
 logger = logging.getLogger(__name__)
 
 
+def _run_api_collector(convenio_key: str, convenio_config: dict) -> dict:
+    from app.integrations.processors.safeconsig.collector import SafeConsigApiCollector
+    return SafeConsigApiCollector().run(convenio_key, convenio_config)
+
+
 def build_auth_strategy(processadora_config: dict, convenio_config: dict):
     auth_type = processadora_config["auth_type"]
 
@@ -70,15 +75,17 @@ def executar_coleta(convenio_key: str) -> dict:
     processadora_key = convenio_config["processadora"]
     processadora_config = config["processadoras"][processadora_key]
 
-    auth_strategy = build_auth_strategy(processadora_config, convenio_config)
-    scraper = build_scraper(
-        processadora_key=processadora_key,
-        processadora_config=processadora_config,
-        convenio_config=convenio_config,
-        auth_strategy=auth_strategy,
-    )
-
-    resultado = scraper.run()
+    if processadora_config.get("integration_type") == "api":
+        resultado = _run_api_collector(convenio_key, convenio_config)
+    else:
+        auth_strategy = build_auth_strategy(processadora_config, convenio_config)
+        scraper = build_scraper(
+            processadora_key=processadora_key,
+            processadora_config=processadora_config,
+            convenio_config=convenio_config,
+            auth_strategy=auth_strategy,
+        )
+        resultado = scraper.run()
 
     coletado_em = now_iso()
     dados_normalizados = [
@@ -154,28 +161,31 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
     records_consolidados: list[dict] = []
 
     for convenio_key, convenio_config in convenios_da_processadora.items():
-        try:
-            auth_strategy = build_auth_strategy(processadora_config, convenio_config)
-        except CredentialNotFoundError as e:
-            logger.error("Credenciais ausentes para %s: %s", convenio_key, e)
-            resultados_convenios.append({
-                "convenio_key": convenio_key,
-                "convenio_nome": convenio_config.get("nome"),
-                "status": "erro",
-                "records_count": 0,
-                "erro": str(e),
-                "dados": [],
-            })
-            continue
+        if processadora_config.get("integration_type") == "api":
+            resultado = _run_api_collector(convenio_key, convenio_config)
+        else:
+            try:
+                auth_strategy = build_auth_strategy(processadora_config, convenio_config)
+            except CredentialNotFoundError as e:
+                logger.error("Credenciais ausentes para %s: %s", convenio_key, e)
+                resultados_convenios.append({
+                    "convenio_key": convenio_key,
+                    "convenio_nome": convenio_config.get("nome"),
+                    "status": "erro",
+                    "records_count": 0,
+                    "erro": str(e),
+                    "dados": [],
+                })
+                continue
 
-        scraper = build_scraper(
-            processadora_key=processadora_key,
-            processadora_config=processadora_config,
-            convenio_config=convenio_config,
-            auth_strategy=auth_strategy,
-        )
+            scraper = build_scraper(
+                processadora_key=processadora_key,
+                processadora_config=processadora_config,
+                convenio_config=convenio_config,
+                auth_strategy=auth_strategy,
+            )
 
-        resultado = scraper.run()
+            resultado = scraper.run()
 
         resultado_convenio = {
             "convenio_key": convenio_key,

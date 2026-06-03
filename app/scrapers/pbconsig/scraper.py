@@ -52,6 +52,10 @@ class PbconsigScraper(BaseScraper):
         )
 
     def collect(self) -> list[dict[str, Any]]:
-        raise NotImplementedError(
-            "Coleta de dados não implementada para PBConsig (autenticação only)."
-        )
+        data_corte = self.convenio_config.get("data_corte_default")
+        if not data_corte:
+            raise RuntimeError(
+                "[PBConsig] Campo 'data_corte_default' não configurado para este convênio."
+            )
+        logger.info("[PBConsig] data_corte via default configurado: %s", data_corte)
+        return [{"folha": "Padrão", "mes_atual": None, "data_corte": data_corte}]

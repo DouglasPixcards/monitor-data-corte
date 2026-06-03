@@ -7,7 +7,8 @@
     },
     "safeconsig": {
       "auth_type": "login_password",
-      "uses_chrome_channel": true
+      "uses_chrome_channel": true,
+      "integration_type": "api"
     },
     "consigup": {
       "auth_type": "login_password",
@@ -256,6 +257,11 @@
       "credential_env_key": "CONSIGNET_VILHENA",
       "base_url": "https://www.www1.consignet.com.br/auth/login",
       "afiliacao": "PREF. VILHENA - RO / PIX CARD CARTAO SAQUE"
+    },
+    "saojoaodospatos": {
+      "nome": "São João dos Patos",
+      "processadora": "safeconsig",
+      "credential_env_key": "SAFECONSIG_PROD_SAOJOAODOSPATOS"
     }
   }
 }
