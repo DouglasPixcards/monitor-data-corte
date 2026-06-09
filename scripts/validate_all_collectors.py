@@ -20,7 +20,6 @@ Opções:
     --dry-run            Listar o que seria testado sem executar nada
 """
 from __future__ import annotations
-
 import argparse
 import sys
 import time

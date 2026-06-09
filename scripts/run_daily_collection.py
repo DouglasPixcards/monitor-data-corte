@@ -9,14 +9,23 @@ Uso:
     python scripts/run_daily_collection.py
 
 Variáveis de ambiente:
-    DAILY_COLLECTION_INTERVAL_MINUTES    Pausa entre processadoras (default: 5)
-    DAILY_COLLECTION_MAX_RETRIES         Rounds de retry para falhas (default: 2)
-    DAILY_COLLECTION_RETRY_DELAY_MINUTES Pausa antes de cada round de retry (default: 60)
+    DAILY_COLLECTION_INTERVAL_MINUTES    Pausa entre processadoras (default: 1)
+    DAILY_COLLECTION_MAX_RETRIES         Nº de retries por processadora (default: 2)
+    DAILY_COLLECTION_RETRY_DELAY_MINUTES Pausa antes de cada retry (default: 60)
 
 Critério de retry:
     - status == "error" (todos os convênios falharam) → retenta
     - status == "ok" ou "partial_success" → considera bem-sucedido
     - Exceção inesperada no orchestrator → retenta
+
+Retry não-bloqueante:
+    Cada processadora que falha ganha seu próprio ciclo de retry em uma
+    thread dedicada. As esperas de RETRY_DELAY correm em paralelo — 3 falhas
+    aguardam 60min concorrentemente, não 180min em fila. A EXECUÇÃO real,
+    porém, é serializada por um lock global: nunca há dois scrapers/escritas
+    no storage rodando ao mesmo tempo (Playwright e o storage JSON não são
+    seguros para concorrência). A rodada principal termina sem travar
+    esperando os retries; o processo só encerra após todos concluírem.
 """
 from __future__ import annotations
 
@@ -24,6 +33,7 @@ import json
 import logging
 import os
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -64,9 +74,14 @@ def _env_int(key: str, default: int) -> int:
         return default
 
 
-INTERVAL_MINUTES: int = _env_int("DAILY_COLLECTION_INTERVAL_MINUTES", 5)
+INTERVAL_MINUTES: int = _env_int("DAILY_COLLECTION_INTERVAL_MINUTES", 1)
 MAX_RETRIES: int = _env_int("DAILY_COLLECTION_MAX_RETRIES", 2)
 RETRY_DELAY_MINUTES: int = _env_int("DAILY_COLLECTION_RETRY_DELAY_MINUTES", 60)
+
+# Serializa a execução real de scrapers/storage entre threads de retry.
+# As esperas (time.sleep do delay) ficam de fora do lock e correm em paralelo;
+# apenas a chamada ao orchestrator é serializada.
+_exec_lock = threading.Lock()
 
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
@@ -128,44 +143,49 @@ def _executar_processadora(
     orchestrator: ColetaOrchestrator,
     resultado: _ResultadoProcessadora,
 ) -> bool:
-    """Chama orchestrator.executar() e registra o resultado. Retorna True se não falhou completamente."""
-    tentativa = resultado.tentativas + 1
-    logger.info(
-        "[Runner] → %s (tentativa %d)", resultado.processadora, tentativa
-    )
-    try:
-        execucao = orchestrator.executar(resultado.processadora)
+    """Chama orchestrator.executar() e registra o resultado. Retorna True se não falhou completamente.
 
-        if execucao.status == CollectionStatus.ERROR:
-            resultado.registrar_erro(
-                f"Todos os convênios falharam — erros: "
-                + ", ".join(
-                    f"{e.get('convenio_key')}: {e.get('erro', '')}"
-                    for e in (execucao.erros or [])
-                )[:200]
-            )
-            logger.warning(
-                "[Runner] ✗ %s — status=error (%d/%d convênios com falha)",
+    A execução real roda sob _exec_lock para garantir que nunca haja dois
+    scrapers/escritas no storage simultâneos, mesmo com retries paralelos.
+    """
+    tentativa = resultado.tentativas + 1
+    with _exec_lock:
+        logger.info(
+            "[Runner] → %s (tentativa %d)", resultado.processadora, tentativa
+        )
+        try:
+            execucao = orchestrator.executar(resultado.processadora)
+
+            if execucao.status == CollectionStatus.ERROR:
+                resultado.registrar_erro(
+                    f"Todos os convênios falharam — erros: "
+                    + ", ".join(
+                        f"{e.get('convenio_key')}: {e.get('erro', '')}"
+                        for e in (execucao.erros or [])
+                    )[:200]
+                )
+                logger.warning(
+                    "[Runner] ✗ %s — status=error (%d/%d convênios com falha)",
+                    resultado.processadora,
+                    execucao.error_count,
+                    execucao.total_convenios,
+                )
+                return False
+
+            resultado.registrar_sucesso(execucao.status)
+            logger.info(
+                "[Runner] ✓ %s — status=%s sucesso=%d/%d",
                 resultado.processadora,
-                execucao.error_count,
+                execucao.status,
+                execucao.success_count,
                 execucao.total_convenios,
             )
+            return True
+
+        except Exception as exc:
+            resultado.registrar_erro(str(exc)[:300])
+            logger.error("[Runner] ✗ %s — exceção: %s", resultado.processadora, exc)
             return False
-
-        resultado.registrar_sucesso(execucao.status)
-        logger.info(
-            "[Runner] ✓ %s — status=%s sucesso=%d/%d",
-            resultado.processadora,
-            execucao.status,
-            execucao.success_count,
-            execucao.total_convenios,
-        )
-        return True
-
-    except Exception as exc:
-        resultado.registrar_erro(str(exc)[:300])
-        logger.error("[Runner] ✗ %s — exceção: %s", resultado.processadora, exc)
-        return False
 
 
 # ── Rodada de execução (principal ou retry) ───────────────────────────────────
@@ -202,6 +222,42 @@ def _executar_rodada(
         label, total - len(falhas), len(falhas),
     )
     return falhas
+
+
+# ── Retry não-bloqueante (uma thread por processadora que falhou) ──────────────
+
+def _retry_loop_processadora(
+    orchestrator: ColetaOrchestrator,
+    resultado: _ResultadoProcessadora,
+    delay_segundos: int,
+    max_retries: int,
+) -> None:
+    """Ciclo de retry de UMA processadora, rodando em sua própria thread.
+
+    Espera `delay_segundos` (fora do lock, em paralelo com outras threads),
+    então retenta sob _exec_lock. Repete até ter sucesso ou esgotar max_retries.
+    """
+    for retry_num in range(1, max_retries + 1):
+        logger.info(
+            "[Runner] ⏳ %s — aguardando %ds para retry %d/%d (em paralelo)...",
+            resultado.processadora, delay_segundos, retry_num, max_retries,
+        )
+        time.sleep(delay_segundos)
+
+        logger.info(
+            "[Runner] ↻ %s — iniciando retry %d/%d", resultado.processadora, retry_num, max_retries
+        )
+        if _executar_processadora(orchestrator, resultado):
+            logger.info(
+                "[Runner] ✓ %s — recuperado no retry %d/%d",
+                resultado.processadora, retry_num, max_retries,
+            )
+            return
+
+    logger.warning(
+        "[Runner] ✗ %s — falha persistente após %d retry(ies)",
+        resultado.processadora, max_retries,
+    )
 
 
 # ── Resumo ────────────────────────────────────────────────────────────────────
@@ -311,39 +367,44 @@ def main() -> int:
         "Rodada principal",
     )
 
-    # Rounds de retry para processadoras que falharam completamente
-    retries_executados = 0
-    for retry_num in range(1, MAX_RETRIES + 1):
-        if not falhas:
-            break
-
+    # Retry não-bloqueante: cada falha ganha sua própria thread, que espera
+    # RETRY_DELAY (em paralelo) e retenta sob _exec_lock. A rodada principal
+    # não fica travada por um sleep monolítico; o processo só encerra após
+    # todas as threads de retry concluírem.
+    retry_delay_segundos = RETRY_DELAY_MINUTES * 60
+    threads_retry: list[threading.Thread] = []
+    if falhas:
         logger.info(
-            "[Runner] %d falha(s) — aguardando %dmin antes do retry %d/%d...",
-            len(falhas),
-            RETRY_DELAY_MINUTES,
-            retry_num,
-            MAX_RETRIES,
+            "[Runner] %d falha(s) — disparando retries em paralelo "
+            "(delay=%dmin, max_retries=%d): %s",
+            len(falhas), RETRY_DELAY_MINUTES, MAX_RETRIES, falhas,
         )
-        time.sleep(RETRY_DELAY_MINUTES * 60)
+        for processadora_key in falhas:
+            t = threading.Thread(
+                target=_retry_loop_processadora,
+                args=(orchestrator, resultados[processadora_key], retry_delay_segundos, MAX_RETRIES),
+                name=f"retry-{processadora_key}",
+            )
+            threads_retry.append(t)
+            t.start()
 
-        falhas = _executar_rodada(
-            orchestrator,
-            resultados,
-            falhas,
-            intervalo_segundos,
-            f"Retry {retry_num}/{MAX_RETRIES}",
-        )
-        retries_executados += 1
+        for t in threads_retry:
+            t.join()
+
+    # Nº total de re-execuções efetivamente realizadas (tentativas além da 1ª).
+    retries_executados = sum(max(0, r.tentativas - 1) for r in resultados.values())
 
     fim = datetime.now(timezone.utc)
     caminho = _salvar_resumo(inicio, fim, resultados, retries_executados)
     _imprimir_resumo(resultados, caminho, inicio, fim)
 
-    if falhas:
+    # Falhas persistentes = as que continuam falhas após todos os retries.
+    falhas_persistentes = [key for key, r in resultados.items() if r.falhou]
+    if falhas_persistentes:
         logger.warning(
             "[Runner] Coleta concluída com %d falha(s) persistente(s): %s",
-            len(falhas),
-            falhas,
+            len(falhas_persistentes),
+            falhas_persistentes,
         )
         return 1
 

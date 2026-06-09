@@ -117,6 +117,8 @@ Um arquivo `.json` por execução com os dados de corte normalizados de todos os
 ### 4. Eventos detectados — `data/processadoras/{processadora}/eventos/{YYYY-MM-DD}.jsonl`
 
 Criado quando há mudanças. Cada linha é um evento:
+
+
 - `registro_novo` — primeiro registro de um convênio
 - `data_corte_alterada` — data de corte mudou em relação à coleta anterior
 - `registro_nao_encontrado` — convênio desapareceu da coleta
@@ -154,10 +156,51 @@ O convênio `saojoaodospatos` usa integração via API REST (não scraper). O da
 | Convênio | Processadora | Tipo de falha | Ação recomendada |
 |---|---|---|---|
 | `belterra` | consigfacil | Certificado digital rejeitado pelo portal — falha permanente | Não há solução por código. Verificar com a ConsigFácil se o certificado do convênio está válido |
-| Vários | consignet | Rate limiting: múltiplos logins seguidos são bloqueados pelo portal | Usar `DAILY_COLLECTION_INTERVAL_MINUTES=5` ou maior. O retry automático resolve na maioria dos casos |
+| Todos (6) | consignet | **reCAPTCHA v3 bloqueando o login automatizado** (ver diagnóstico abaixo) | Falha externa. Não resolve por ajuste de seletor/intervalo. Decidir estratégia: pedir API/allowlist à Consignet, sessão persistente, ou stealth |
 | `muana` | consigup | Portal fora do ar ou timeout de rede ocasional | Esperar e verificar se o portal `sistema.consigup.com.br` está acessível. Retry resolve |
 | Qualquer | qualquer | `ERR_CONNECTION_TIMED_OUT` | Portal temporariamente indisponível. Verificar conectividade de rede e acessar o portal manualmente |
 | Qualquer | qualquer | `Credenciais inválidas` | A senha do convênio mudou. Atualizar no `.env` e rodar `validate_all_collectors.py --convenio <key>` para confirmar |
+
+---
+
+## Diagnóstico: ConsigNet bloqueado por reCAPTCHA v3 (2026-06-09)
+
+**Status:** falha externa conhecida, não resolvida. Afeta os 6 convênios consignet
+(defensoria, maringa, maringa_prev, navegantes, rancharia, vilhena).
+
+**Sintoma:** após submeter usuário + senha, a página permanece em `/auth/login`,
+sem nenhuma mensagem de erro. O log mostra `[TwoStepAuth] Autenticação concluída`
+(enganoso — o `wait_for_load_state("networkidle")` retorna mesmo sem navegação) e,
+em seguida, `[ConsigNet] Autenticação falhou — ainda em /auth/login`.
+
+**Causa raiz:** o portal `www1.consignet.com.br` usa **reCAPTCHA v3 (invisível)**.
+O login programático via Playwright recebe um score baixo (comportamento de bot) e
+é **rejeitado silenciosamente** pelo backend — sem desafio visível nem mensagem.
+
+**Como foi confirmado** (`scripts/diag_consignet.py`):
+- HTML da tela contém `recaptcha/api.js?render=<sitekey>`, `grecaptcha.execute` e
+  o `badge` → assinatura do reCAPTCHA v3.
+- Texto visível: *"This site is protected by reCAPTCHA..."*.
+- Campos de login **corretamente preenchidos** (usuário e senha de 15 chars) →
+  descarta erro de credencial ou de seletor.
+- Falha **mesmo com um único login isolado** → descarta a antiga hipótese de
+  rate-limit por quantidade de logins.
+- Evidência salva em `data/diagnostico/consignet_<convenio>_<timestamp>.{png,html}`.
+
+**Por que "funcionava antes":** o score do reCAPTCHA v3 é não-determinístico. A
+reputação do IP/comportamento degradou ou o portal endureceu o limiar de aceitação.
+
+**Reproduzir o diagnóstico:**
+```powershell
+python scripts/diag_consignet.py --convenio defensoria
+```
+
+**Estratégias possíveis (a decidir):**
+1. **API / allowlist** — solicitar à Consignet/DB1 acesso via API oficial ou
+   whitelist do IP (mesmo modelo da SafeConsig). Mais sustentável.
+2. **Sessão persistente** — usar `user_data_dir` (já suportado pelo `base_scraper`):
+   login manual 1x resolvendo o captcha e reuso dos cookies de sessão.
+3. **Stealth/humanização** — `playwright-stealth` + browser não-headless. Frágil.
 
 ---
 
@@ -169,9 +212,17 @@ Todas ficam no arquivo `.env` na raiz do projeto. **Nunca commitar o `.env` no r
 
 | Variável | Obrigatório | Padrão | Descrição |
 |---|---|---|---|
-| `DAILY_COLLECTION_INTERVAL_MINUTES` | Não | `5` | Pausa em minutos entre cada processadora |
-| `DAILY_COLLECTION_MAX_RETRIES` | Não | `2` | Quantas vezes retentar processadoras que falharam |
-| `DAILY_COLLECTION_RETRY_DELAY_MINUTES` | Não | `60` | Pausa em minutos antes de cada round de retry |
+| `DAILY_COLLECTION_INTERVAL_MINUTES` | Não | `1` | Pausa em minutos entre cada processadora na rodada principal |
+| `DAILY_COLLECTION_MAX_RETRIES` | Não | `2` | Quantas vezes retentar cada processadora que falhou |
+| `DAILY_COLLECTION_RETRY_DELAY_MINUTES` | Não | `60` | Pausa em minutos antes de cada retry |
+
+> **Retry não-bloqueante:** quando uma ou mais processadoras falham completamente,
+> cada uma ganha sua própria thread de retry. As esperas de `RETRY_DELAY` correm
+> **em paralelo** — 3 falhas aguardam 60min ao mesmo tempo, não 180min em fila — e a
+> rodada principal não fica travada. A **execução** real, porém, é serializada por um
+> lock: nunca há dois scrapers ou escritas no storage rodando simultaneamente
+> (Playwright e o storage JSON não são seguros para concorrência). O processo só
+> encerra após todos os ciclos de retry concluírem.
 
 ### Notificação por e-mail
 

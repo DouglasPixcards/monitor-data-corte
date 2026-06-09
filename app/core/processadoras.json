@@ -262,6 +262,16 @@
       "nome": "São João dos Patos",
       "processadora": "safeconsig",
       "credential_env_key": "SAFECONSIG_PROD_SAOJOAODOSPATOS"
+    },
+    "uruoca": {
+      "nome": "Uruoca (HML)",
+      "processadora": "safeconsig",
+      "credential_env_key": "SAFECONSIG_HML_URUOCA"
+    },
+    "itaquaquecetuba": {
+      "nome": "Itaquaquecetuba (HML)",
+      "processadora": "safeconsig",
+      "credential_env_key": "SAFECONSIG_HML_ITAQUAQUECETUBA"
     }
   }
 }
