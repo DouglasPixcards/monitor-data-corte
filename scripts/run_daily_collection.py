@@ -141,7 +141,10 @@ def _executar_processadora(
         try:
             # coletar() persiste tudo mas NÃO envia e-mail — o resumo diário é
             # enviado UMA vez ao final (agregado), não por processadora.
-            bundle = orchestrator.coletar(resultado.processadora)
+            # Caminho agendado → ativa retentativa rápida de lote em erro técnico
+            # (transitório); o retry com RETRY_DELAY de 60min deste runner segue
+            # cobrindo falhas sustentadas, em cima disso.
+            bundle = orchestrator.coletar(resultado.processadora, retentar_tecnico=True)
             resultado.bundle = bundle
             execucao = bundle.execucao
 

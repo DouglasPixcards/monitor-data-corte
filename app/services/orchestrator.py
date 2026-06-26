@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from app.core.models import DadoCorte, Evento, Execucao
 from app.services.comparador_service import ComparadorService
+from app.services.erro_classifier import classificar_erro
 from app.services.notification.base import NotificadorBase
 from app.services.notification.digest_builder import DigestBuilder
 from app.services.storage_helpers import now_iso
@@ -16,6 +17,30 @@ from app.storage.repository import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Teto de retentativas do LOTE quando há erro técnico (transitório): 1 coleta
+# inicial + até _MAX_RETENTATIVAS_LOTE re-execuções → no máximo 3 coletas.
+_MAX_RETENTATIVAS_LOTE = 2
+
+
+def _erros_tecnicos_retentaveis(resultado_lote: dict) -> list[dict]:
+    """Convênios cuja falha justifica re-tentar o LOTE.
+
+    A falha conta como técnica/transitória quando NÃO é de credencial
+    (``auth_falhou``) e o convênio NÃO é ``known_failure``. Erros de credencial
+    e falhas já mapeadas são determinísticos — re-tentar não muda o resultado,
+    só gasta tempo de automação.
+    """
+    tecnicos: list[dict] = []
+    for c in resultado_lote.get("convenios", []):
+        if c.get("status") == "ok":
+            continue
+        if c.get("known_failure"):
+            continue
+        if classificar_erro(c.get("erro")) == "auth_falhou":
+            continue
+        tecnicos.append(c)
+    return tecnicos
 
 
 @dataclass
@@ -60,11 +85,21 @@ class ColetaOrchestrator:
     # Coleta (sem notificar) — base de tudo
     # ------------------------------------------------------------------
 
-    def coletar(self, processadora: str, convenio_filter: str | None = None) -> ResultadoColeta:
+    def coletar(
+        self,
+        processadora: str,
+        convenio_filter: str | None = None,
+        *,
+        retentar_tecnico: bool = False,
+    ) -> ResultadoColeta:
         """Roda a coleta, persiste execução/dados/eventos e devolve o bundle.
 
         NÃO envia e-mail — a notificação fica a cargo de ``executar`` (1
         processadora) ou ``notificar_agregado``/``executar_todas`` (resumo único).
+
+        ``retentar_tecnico``: só o caminho AGENDADO ativa a retentativa de lote
+        em erro técnico (``executar_todas`` / runner diário). O caminho on-demand
+        da API roda coleta única para não pendurar a resposta síncrona.
         """
         # 1a. Baseline de DADOS = última ok/partial (ignora execuções 100% erro).
         ultima_ok = self._execucao_repo.buscar_ultima_ok(processadora)
@@ -75,8 +110,12 @@ class ColetaOrchestrator:
         # 1b. Baseline de STATUS = última execução REAL anterior (qualquer status).
         status_anterior = self._montar_status_anterior(processadora)
 
-        # 2. Rodar scrapers/coletores.
-        resultado_lote = executar_coleta_lote(processadora, convenio_filter=convenio_filter)
+        # 2. Rodar scrapers/coletores. Retentativa de lote em erro técnico só no
+        #    caminho agendado; on-demand é coleta única (resposta síncrona da API).
+        if retentar_tecnico:
+            resultado_lote = self._coletar_lote_com_retry(processadora, convenio_filter)
+        else:
+            resultado_lote = executar_coleta_lote(processadora, convenio_filter=convenio_filter)
 
         # Status EFETIVO por convênio: "ok" só se veio data de corte; "sem_dado"
         # quando coletou mas não retornou data; "erro" quando falhou.
@@ -158,6 +197,31 @@ class ColetaOrchestrator:
         return ResultadoColeta(processadora=processadora, execucao=execucao,
                                eventos=eventos, resultado_lote=resultado_lote)
 
+    def _coletar_lote_com_retry(self, processadora: str, convenio_filter: str | None) -> dict:
+        """Roda o lote e re-tenta enquanto houver erro técnico (teto _MAX_RETENTATIVAS_LOTE).
+
+        Pula o retry quando 100% das falhas são de credencial (ou known_failure):
+        nesse caso re-tentar não recupera nada. Mantém o resultado da ÚLTIMA
+        tentativa (granularidade de lote).
+
+        DÍVIDA DE V2: num lote com falhas MISTAS (credencial + técnica) o lote
+        inteiro é re-executado — inclusive os convênios de credencial, que
+        falharão de novo (≤3 coletas no total). Granularidade por-convênio fica
+        para V2.
+        """
+        resultado_lote = executar_coleta_lote(processadora, convenio_filter=convenio_filter)
+        for tentativa in range(1, _MAX_RETENTATIVAS_LOTE + 1):
+            tecnicos = _erros_tecnicos_retentaveis(resultado_lote)
+            if not tecnicos:
+                break
+            logger.warning(
+                "Retentativa %d/%d do lote %s — %d erro(s) técnico(s): %s",
+                tentativa, _MAX_RETENTATIVAS_LOTE, processadora, len(tecnicos),
+                ", ".join(c.get("convenio_key", "?") for c in tecnicos),
+            )
+            resultado_lote = executar_coleta_lote(processadora, convenio_filter=convenio_filter)
+        return resultado_lote
+
     # ------------------------------------------------------------------
     # Notificação
     # ------------------------------------------------------------------
@@ -184,11 +248,15 @@ class ColetaOrchestrator:
             logger.exception("Falha ao enviar resumo diário agregado por e-mail")
 
     def executar_todas(self, processadoras: list[str]) -> list[ResultadoColeta]:
-        """Coleta todas as processadoras (sem retry) e envia UM e-mail consolidado."""
+        """Coleta todas as processadoras e envia UM e-mail consolidado.
+
+        Cada lote re-tenta sozinho seus erros técnicos (ver
+        ``_coletar_lote_com_retry``); aqui não há retry no nível da processadora.
+        """
         resultados: list[ResultadoColeta] = []
         for processadora in processadoras:
             try:
-                resultados.append(self.coletar(processadora))
+                resultados.append(self.coletar(processadora, retentar_tecnico=True))
             except Exception:
                 logger.exception("Falha ao coletar processadora %s", processadora)
         self.notificar_agregado(resultados)

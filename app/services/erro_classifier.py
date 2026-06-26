@@ -10,6 +10,7 @@ from __future__ import annotations
 
 CATEGORIAS = (
     "auth_falhou",
+    "rede",
     "sem_dado",
     "timeout",
     "portal_mudou",
@@ -21,6 +22,7 @@ CATEGORIAS = (
 # Frase em português por categoria — camada humana do e-mail.
 CATEGORIA_FRASE = {
     "auth_falhou": "falha de autenticação (login recusado)",
+    "rede": "falha de rede/conexão durante a coleta",
     "sem_dado": "coletou mas não retornou data de corte",
     "timeout": "tempo esgotado durante a coleta",
     "portal_mudou": "página ou seletor mudou no portal",
@@ -32,6 +34,16 @@ CATEGORIA_FRASE = {
 # Ordem importa: timeout antes de portal_mudou (um TimeoutError aguardando um
 # seletor casa os dois; queremos "timeout").
 _TIMEOUT = ("timeout", "timed out", "tempo esgotado", "deadline")
+# Rede/conexão é checada ANTES de auth: uma falha de rede que menciona
+# "autenticar"/"login" é transitória (técnica), não credencial — do contrário o
+# retry de lote seria pulado indevidamente.
+_REDE = (
+    "rede", "conexão", "conexao", "connection", "network",
+    "econnrefused", "econnreset", "econnaborted", "enetunreach", "ehostunreach",
+    "enotfound", "net::err", "dns", "name not resolved", "name_not_resolved",
+    "name resolution", "unreachable", "socket hang up",
+    "ssl handshake", "tls handshake", "proxy",
+)
 _AUTH = (
     "autentic", "login", "senha", "credenc", "credential", "username",
     "password", "variável de ambiente", "variavel de ambiente",
@@ -54,6 +66,8 @@ def classificar_erro(erro: str | None) -> str:
     e = str(erro).lower()
     if any(t in e for t in _TIMEOUT):
         return "timeout"
+    if any(t in e for t in _REDE):
+        return "rede"
     if any(t in e for t in _AUTH):
         return "auth_falhou"
     if any(t in e for t in _SEM_DADO):
