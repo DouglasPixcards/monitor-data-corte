@@ -12,8 +12,8 @@ from app.scrapers.base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
 
-_LOGIN_URL_FRAGMENTS = ("Login.aspx", "LoginSegundaEtapa.aspx")
 _SUCCESS_INDICATORS = [
+    "table#gvOrgao",          # tela de seleção de convênio (pós-login, WebForms)
     "text=Sair",
     "text=Logout",
     "text=Sair do Sistema",
@@ -22,6 +22,14 @@ _SUCCESS_INDICATORS = [
     "[id*='lnkSair']",
     "[class*='dashboard']",
 ]
+
+# Campos que existem na(s) tela(s) de login. Persistem no DOM mesmo após logar
+# (a seleção de convênio é servida na mesma LoginSegundaEtapa.aspx), então sua
+# presença sozinha NÃO indica falha — é preciso uma mensagem de erro real.
+_LOGIN_FIELD_SELECTORS = ("#txtLogin", "#txtSenha")
+_LOGIN_ERROR_SELECTORS = ("[id*='lblErro']", "[class*='error']", "[class*='alert']", "body")
+# Palavras que caracterizam erro REAL de login (não apenas estar numa URL .aspx).
+_LOGIN_ERROR_KEYWORDS = ("nválid", "inválid", "xpirad", "ncorret", "tativa", "bloque")
 
 
 class ConsiglogScraper(BaseScraper):
@@ -53,37 +61,51 @@ class ConsiglogScraper(BaseScraper):
         current_url = self.page.url
         logger.info("[ConsigLog] URL após autenticação: %s", current_url)
 
-        if any(fragment in current_url for fragment in _LOGIN_URL_FRAGMENTS):
-            # Verifica mensagem de erro na tela
-            error_msg = ""
-            for error_sel in ["[id*='lblErro']", "[class*='error']", "[class*='alert']", "body"]:
-                try:
-                    loc = self.page.locator(error_sel)
-                    if loc.count() > 0:
-                        text = loc.first.inner_text().strip()
-                        if any(kw in text for kw in ("nválid", "Inválid", "tativa")):
-                            error_msg = text[:200]
-                            break
-                except Exception:
-                    pass
+        # 1) Sucesso por CONTEÚDO, não pela URL. O WebForms mantém
+        #    LoginSegundaEtapa.aspx no postback pós-login, exibindo a seleção de
+        #    convênio (gvOrgao) — validar pela URL daria falso-negativo.
+        for selector in _SUCCESS_INDICATORS:
+            if self._tem(selector):
+                logger.info("[ConsigLog] Sessão validada via conteúdo: %s", selector)
+                return
+
+        # 2) Falha REAL: campos de login na tela + mensagem de erro de verdade.
+        #    Os campos de login persistem mesmo logado, então a mensagem é o que
+        #    distingue falha real do falso-negativo de URL.
+        tem_campos_login = any(self._tem(sel) for sel in _LOGIN_FIELD_SELECTORS)
+        error_msg = self._mensagem_erro_login()
+        if tem_campos_login and error_msg:
             raise RuntimeError(
-                f"[ConsigLog] Autenticação falhou — ainda em página de login. "
+                f"[ConsigLog] Autenticação falhou — login recusado. "
                 f"Mensagem: {error_msg!r}. URL: {current_url}"
             )
 
-        for selector in _SUCCESS_INDICATORS:
-            try:
-                loc = self.page.locator(selector)
-                if loc.count() > 0:
-                    logger.info("[ConsigLog] Sessão validada via seletor: %s", selector)
-                    return
-            except Exception:
-                continue
-
+        # 3) Nem sucesso reconhecível nem erro explícito: não derruba pela URL.
+        #    collect() exige a seleção de convênio e falhará claramente se ausente.
         logger.warning(
-            "[ConsigLog] Saiu de Login.aspx — considerado sucesso. URL: %s",
+            "[ConsigLog] Sem indicador de sucesso nem erro de login explícito. "
+            "Prosseguindo — collect() depende da seleção de convênio. URL: %s",
             current_url,
         )
+
+    def _tem(self, selector: str) -> bool:
+        try:
+            return self.page.locator(selector).count() > 0
+        except Exception:
+            return False
+
+    def _mensagem_erro_login(self) -> str:
+        """Retorna a 1ª mensagem de erro REAL de login na tela, ou '' se não houver."""
+        for sel in _LOGIN_ERROR_SELECTORS:
+            try:
+                loc = self.page.locator(sel)
+                if loc.count() > 0:
+                    text = loc.first.inner_text().strip()
+                    if any(kw in text.lower() for kw in _LOGIN_ERROR_KEYWORDS):
+                        return text[:200]
+            except Exception:
+                pass
+        return ""
 
     def collect(self) -> list[dict[str, Any]]:
         if self.page is None:
