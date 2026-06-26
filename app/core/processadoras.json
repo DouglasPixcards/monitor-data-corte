@@ -86,8 +86,6 @@
     "consignet": {
       "auth_type": "two_step",
       "uses_chrome_channel": false,
-      "known_failure": true,
-      "known_failure_reason": "reCAPTCHA v3 bloqueia o login automatizado (ver docs/OPERACAO_V1.md)",
       "selectors": {
         "step1_username": { "type": "css", "value": "#login-username" },
         "step1_submit":   { "type": "css", "value": "#btn-continue" },
