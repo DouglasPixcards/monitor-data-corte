@@ -19,3 +19,4 @@ class EventoTipo(str, Enum):
     REGISTRO_NOVO = "registro_novo"
     REGISTRO_NAO_ENCONTRADO = "registro_nao_encontrado"
     ERRO_COLETA = "erro_coleta"
+    RECUPERADO = "recuperado"

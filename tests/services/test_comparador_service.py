@@ -80,3 +80,121 @@ def test_chave_inclui_convenio_key_para_evitar_colisao():
     assert len(eventos) == 1
     assert eventos[0].tipo == EventoTipo.DATA_CORTE_ALTERADA
     assert eventos[0].convenio_key == "maranhao"
+
+
+# --- Camada de STATUS (falha/recuperação/gap) ---
+
+def _status(status, erro=None, known=False, nome=None, records=1) -> dict:
+    return {"status": status, "erro": erro, "known_failure": known,
+            "records_count": records, "convenio_nome": nome}
+
+
+def _erros(eventos):
+    return [e for e in eventos if e.tipo == EventoTipo.ERRO_COLETA]
+
+
+def test_status_falha_nova():
+    eventos = ComparadorService().comparar(
+        "consignet", "exec2", [], [],
+        status_anterior={"x": "coletado"},
+        status_atual={"x": _status("erro", "[X] Autenticação falhou — /auth/login")},
+    )
+    erro = _erros(eventos)
+    assert len(erro) == 1
+    assert erro[0].subtipo == "falha_nova"
+    assert erro[0].categoria == "auth_falhou"
+    assert "Autenticação" in erro[0].detalhe
+
+
+def test_status_persistente():
+    eventos = ComparadorService().comparar(
+        "consignet", "exec2", [], [],
+        status_anterior={"x": "falhou"},
+        status_atual={"x": _status("erro", "Timeout 30000ms exceeded")},
+    )
+    erro = _erros(eventos)
+    assert erro[0].subtipo == "persistente"
+    assert erro[0].categoria == "timeout"
+
+
+def test_status_recuperado():
+    eventos = ComparadorService().comparar(
+        "consignet", "exec2", [], [],
+        status_anterior={"x": "falhou"},
+        status_atual={"x": _status("ok")},
+    )
+    assert any(e.tipo == EventoTipo.RECUPERADO for e in eventos)
+    assert _erros(eventos) == []
+
+
+def test_status_gap():
+    eventos = ComparadorService().comparar(
+        "consignet", "exec2", [], [],
+        status_anterior={"x": "coletado"},
+        status_atual={},
+    )
+    erro = _erros(eventos)
+    assert erro[0].subtipo == "gap"
+    assert erro[0].categoria == "nao_executou"
+
+
+def test_status_known_failure_nao_e_falha_nova():
+    eventos = ComparadorService().comparar(
+        "consignet", "exec2", [], [],
+        status_anterior={"defensoria": "coletado"},
+        status_atual={"defensoria": _status("erro", "reCAPTCHA v3", known=True)},
+    )
+    erro = _erros(eventos)
+    assert erro[0].categoria == "falha_conhecida"
+    assert erro[0].subtipo == "conhecida"
+
+
+def test_status_nao_duplica_registro_nao_encontrado():
+    # Convênio com dado no baseline que falhou hoje: só ERRO_COLETA, sem REGISTRO_NAO_ENCONTRADO.
+    anterior = [_dado("belterra", "FOLHA 02", "02/2026", "10/05/2026")]
+    eventos = ComparadorService().comparar(
+        "consigfacil", "exec2", anterior, [],
+        status_anterior={"belterra": "coletado"},
+        status_atual={"belterra": _status("erro", "Timeout")},
+    )
+    tipos = {e.tipo for e in eventos}
+    assert EventoTipo.REGISTRO_NAO_ENCONTRADO not in tipos
+    assert EventoTipo.ERRO_COLETA in tipos
+
+
+def test_sem_status_mantem_comportamento_antigo():
+    # Sem os mapas de status, REGISTRO_NAO_ENCONTRADO continua sendo emitido.
+    anterior = [_dado("belterra", "FOLHA 02", "02/2026", "10/05/2026")]
+    eventos = ComparadorService().comparar("consigfacil", "exec2", anterior, [])
+    assert len(eventos) == 1
+    assert eventos[0].tipo == EventoTipo.REGISTRO_NAO_ENCONTRADO
+
+
+def test_status_sem_dado_novo():
+    # Coletou (status efetivo sem_dado) mas não trouxe data; antes coletava.
+    eventos = ComparadorService().comparar(
+        "consignet", "exec2", [], [],
+        status_anterior={"x": "coletado"},
+        status_atual={"x": _status("sem_dado")},
+    )
+    erro = _erros(eventos)
+    assert erro[0].categoria == "sem_dado"
+    assert erro[0].subtipo == "falha_nova"
+
+
+def test_status_sem_dado_persistente():
+    eventos = ComparadorService().comparar(
+        "consignet", "exec2", [], [],
+        status_anterior={"x": "sem_dado"},
+        status_atual={"x": _status("sem_dado")},
+    )
+    assert _erros(eventos)[0].subtipo == "persistente"
+
+
+def test_status_recuperado_de_sem_dado():
+    eventos = ComparadorService().comparar(
+        "consignet", "exec2", [], [],
+        status_anterior={"x": "sem_dado"},
+        status_atual={"x": _status("ok")},
+    )
+    assert any(e.tipo == EventoTipo.RECUPERADO for e in eventos)

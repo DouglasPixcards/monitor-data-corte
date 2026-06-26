@@ -46,6 +46,11 @@ class FileExecucaoRepository(ExecucaoRepository):
                 return e
         return None
 
+    def buscar_ultima(self, processadora: str) -> Execucao | None:
+        # listar() já vem ordenado do mais recente para o mais antigo.
+        execucoes = self.listar(processadora)
+        return execucoes[0] if execucoes else None
+
 
 class FileDadosCorteRepository(DadosCorteRepository):
     def __init__(self, base_path: str) -> None:

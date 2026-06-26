@@ -54,14 +54,8 @@ logger = logging.getLogger("run_daily_collection")
 from app.core.enums import CollectionStatus
 from app.core.loader import load_processadoras_config
 from app.core.settings import settings
-from app.services.comparador_service import ComparadorService
-from app.services.notification.smtp import EmailSMTPNotificador
 from app.services.orchestrator import ColetaOrchestrator
-from app.storage.file_storage import (
-    FileDadosCorteRepository,
-    FileEventoRepository,
-    FileExecucaoRepository,
-)
+from app.services.orchestrator_factory import build_orchestrator
 
 
 # ── Configuração lida do ambiente ─────────────────────────────────────────────
@@ -84,33 +78,22 @@ RETRY_DELAY_MINUTES: int = _env_int("DAILY_COLLECTION_RETRY_DELAY_MINUTES", 60)
 _exec_lock = threading.Lock()
 
 
-# ── Orchestrator ──────────────────────────────────────────────────────────────
-
-def _build_orchestrator() -> ColetaOrchestrator:
-    return ColetaOrchestrator(
-        execucao_repo=FileExecucaoRepository(settings.STORAGE_PATH),
-        dados_repo=FileDadosCorteRepository(settings.STORAGE_PATH),
-        evento_repo=FileEventoRepository(settings.STORAGE_PATH),
-        comparador=ComparadorService(),
-        notificador=EmailSMTPNotificador(
-            host=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
-            user=settings.SMTP_USER,
-            password=settings.SMTP_PASSWORD,
-            use_tls=settings.SMTP_USE_TLS,
-        ),
-        destinatarios=settings.notification_DESTINATARIOS,
-    )
-
-
 # ── Rastreamento de resultado por processadora ────────────────────────────────
 
 class _ResultadoProcessadora:
-    def __init__(self, processadora: str) -> None:
+    def __init__(
+        self,
+        processadora: str,
+        known_failure: bool = False,
+        known_failure_reason: str | None = None,
+    ) -> None:
         self.processadora = processadora
         self.status: str = "pendente"
         self.tentativas: int = 0
         self.erro: str | None = None
+        self.known_failure = known_failure
+        self.known_failure_reason = known_failure_reason
+        self.bundle = None  # último ResultadoColeta (para o e-mail agregado)
 
     @property
     def falhou(self) -> bool:
@@ -134,6 +117,8 @@ class _ResultadoProcessadora:
             "status": self.status,
             "tentativas": self.tentativas,
             "erro": self.erro,
+            "known_failure": self.known_failure,
+            "known_failure_reason": self.known_failure_reason,
         }
 
 
@@ -154,7 +139,11 @@ def _executar_processadora(
             "[Runner] → %s (tentativa %d)", resultado.processadora, tentativa
         )
         try:
-            execucao = orchestrator.executar(resultado.processadora)
+            # coletar() persiste tudo mas NÃO envia e-mail — o resumo diário é
+            # enviado UMA vez ao final (agregado), não por processadora.
+            bundle = orchestrator.coletar(resultado.processadora)
+            resultado.bundle = bundle
+            execucao = bundle.execucao
 
             if execucao.status == CollectionStatus.ERROR:
                 resultado.registrar_erro(
@@ -324,10 +313,16 @@ def _imprimir_resumo(
     print()
 
     for r in resultados.values():
-        icon = "✓" if not r.falhou else "✗"
+        if r.falhou and r.known_failure:
+            icon = "⊘"
+        elif r.falhou:
+            icon = "✗"
+        else:
+            icon = "✓"
         extra = f" (tentativas: {r.tentativas})" if r.tentativas > 1 else ""
+        conhecida = " [falha conhecida — retry pulado]" if (r.falhou and r.known_failure) else ""
         status_label = f"[{r.status}]" if r.status != "ok" else ""
-        print(f"  {icon} {r.processadora:<22} {status_label}{extra}")
+        print(f"  {icon} {r.processadora:<22} {status_label}{extra}{conhecida}")
         if r.erro:
             print(f"      └ {r.erro[:90]}")
 
@@ -354,9 +349,16 @@ def main() -> int:
         RETRY_DELAY_MINUTES,
     )
 
-    orchestrator = _build_orchestrator()
+    orchestrator = build_orchestrator()
     intervalo_segundos = INTERVAL_MINUTES * 60
-    resultados = {key: _ResultadoProcessadora(key) for key in processadoras_keys}
+    resultados = {
+        key: _ResultadoProcessadora(
+            key,
+            known_failure=bool(cfg.get("known_failure")),
+            known_failure_reason=cfg.get("known_failure_reason"),
+        )
+        for key, cfg in config["processadoras"].items()
+    }
 
     # Rodada principal
     falhas = _executar_rodada(
@@ -371,15 +373,29 @@ def main() -> int:
     # RETRY_DELAY (em paralelo) e retenta sob _exec_lock. A rodada principal
     # não fica travada por um sleep monolítico; o processo só encerra após
     # todas as threads de retry concluírem.
+    #
+    # Processadoras com falha CONHECIDA (known_failure) são puladas: retentar
+    # não adianta (erro externo permanente) e ainda desperdiça tempo/martela o
+    # portal. Elas continuam contando como falha conhecida no resumo, mas não
+    # entram no ciclo de retry.
+    falhas_conhecidas = [k for k in falhas if resultados[k].known_failure]
+    falhas_para_retry = [k for k in falhas if not resultados[k].known_failure]
+
+    for k in falhas_conhecidas:
+        logger.info(
+            "[Runner] ⊘ %s — falha conhecida, retry pulado (%s)",
+            k, resultados[k].known_failure_reason or "sem motivo registrado",
+        )
+
     retry_delay_segundos = RETRY_DELAY_MINUTES * 60
     threads_retry: list[threading.Thread] = []
-    if falhas:
+    if falhas_para_retry:
         logger.info(
             "[Runner] %d falha(s) — disparando retries em paralelo "
             "(delay=%dmin, max_retries=%d): %s",
-            len(falhas), RETRY_DELAY_MINUTES, MAX_RETRIES, falhas,
+            len(falhas_para_retry), RETRY_DELAY_MINUTES, MAX_RETRIES, falhas_para_retry,
         )
-        for processadora_key in falhas:
+        for processadora_key in falhas_para_retry:
             t = threading.Thread(
                 target=_retry_loop_processadora,
                 args=(orchestrator, resultados[processadora_key], retry_delay_segundos, MAX_RETRIES),
@@ -391,6 +407,15 @@ def main() -> int:
         for t in threads_retry:
             t.join()
 
+    # E-mail diário ÚNICO consolidando TODAS as processadoras desta rodada
+    # (inclui o resultado final de cada uma após os retries).
+    bundles = [r.bundle for r in resultados.values() if r.bundle is not None]
+    try:
+        orchestrator.notificar_agregado(bundles)
+        logger.info("[Runner] Resumo diário agregado enviado (%d processadoras).", len(bundles))
+    except Exception:
+        logger.exception("[Runner] Falha ao enviar resumo diário agregado")
+
     # Nº total de re-execuções efetivamente realizadas (tentativas além da 1ª).
     retries_executados = sum(max(0, r.tentativas - 1) for r in resultados.values())
 
@@ -398,17 +423,28 @@ def main() -> int:
     caminho = _salvar_resumo(inicio, fim, resultados, retries_executados)
     _imprimir_resumo(resultados, caminho, inicio, fim)
 
-    # Falhas persistentes = as que continuam falhas após todos os retries.
-    falhas_persistentes = [key for key, r in resultados.items() if r.falhou]
-    if falhas_persistentes:
+    # Falhas que continuam após os retries, separadas em conhecidas vs inesperadas.
+    falhas_conhecidas_final = [k for k, r in resultados.items() if r.falhou and r.known_failure]
+    falhas_inesperadas = [k for k, r in resultados.items() if r.falhou and not r.known_failure]
+
+    if falhas_conhecidas_final:
+        logger.info(
+            "[Runner] %d falha(s) conhecida(s) (esperadas, não acionáveis): %s",
+            len(falhas_conhecidas_final),
+            falhas_conhecidas_final,
+        )
+
+    # Só falhas INESPERADAS sinalizam erro (exit 1) — evita alarme diário por
+    # erros externos já conhecidos e documentados.
+    if falhas_inesperadas:
         logger.warning(
-            "[Runner] Coleta concluída com %d falha(s) persistente(s): %s",
-            len(falhas_persistentes),
-            falhas_persistentes,
+            "[Runner] Coleta concluída com %d falha(s) inesperada(s): %s",
+            len(falhas_inesperadas),
+            falhas_inesperadas,
         )
         return 1
 
-    logger.info("[Runner] Coleta diária concluída com sucesso.")
+    logger.info("[Runner] Coleta diária concluída sem falhas inesperadas.")
     return 0
 
 

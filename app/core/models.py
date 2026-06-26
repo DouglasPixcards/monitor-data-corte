@@ -41,3 +41,7 @@ class Evento:
     mes_atual: str | None = field(default=None)
     data_corte_anterior: str | None = field(default=None)
     data_corte_nova: str | None = field(default=None)
+    # Falhas de coleta (ERRO_COLETA/RECUPERADO): classificação humana + técnica.
+    categoria: str | None = field(default=None)   # auth_falhou | sem_dado | timeout | ...
+    subtipo: str | None = field(default=None)      # falha_nova | persistente | gap | conhecida
+    detalhe: str | None = field(default=None)      # mensagem técnica original (string crua)

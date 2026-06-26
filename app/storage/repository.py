@@ -13,6 +13,15 @@ class ExecucaoRepository(ABC):
     def buscar_ultima_ok(self, processadora: str) -> Execucao | None: ...
 
     @abstractmethod
+    def buscar_ultima(self, processadora: str) -> Execucao | None:
+        """Última execução REAL anterior (qualquer status, inclusive 'erro').
+
+        Baseline para transição de STATUS por convênio (falha_nova/persistente/
+        recuperado/gap). Difere de ``buscar_ultima_ok``, que ignora execuções
+        totalmente 'erro' e serve de baseline para mudança de DADO."""
+        ...
+
+    @abstractmethod
     def listar(self, processadora: str) -> list[Execucao]: ...
 
 

@@ -34,20 +34,16 @@ class SchedulerService:
             )
             return
 
-        processadoras = self._descobrir_processadoras()
-        for processadora in processadoras:
-            self._scheduler.add_job(
-                self._executar,
-                trigger=CronTrigger(hour=hora, minute=minuto),
-                args=[processadora],
-                id=f"coleta_{processadora}",
-                replace_existing=True,
-            )
-
+        # Um ÚNICO job diário que roda todas as processadoras e envia um só e-mail.
+        self._scheduler.add_job(
+            self._executar_todas,
+            trigger=CronTrigger(hour=hora, minute=minuto),
+            id="coleta_diaria",
+            replace_existing=True,
+        )
         self._scheduler.start()
         logger.info(
-            "Scheduler iniciado: %d processadora(s) agendada(s) às %s",
-            len(processadoras),
+            "Scheduler iniciado: coleta diária consolidada às %s (e-mail único)",
             self._horario,
         )
 
@@ -56,13 +52,14 @@ class SchedulerService:
             self._scheduler.shutdown(wait=False)
             logger.info("Scheduler encerrado")
 
-    def _executar(self, processadora: str) -> None:
-        logger.info("Job agendado iniciado para %s", processadora)
+    def _executar_todas(self) -> None:
+        processadoras = self._descobrir_processadoras()
+        logger.info("Job agendado iniciado: %d processadoras (resumo único)", len(processadoras))
         try:
-            self._orchestrator_factory().executar(processadora)
-            logger.info("Job agendado concluído para %s", processadora)
+            self._orchestrator_factory().executar_todas(processadoras)
+            logger.info("Job agendado de coleta diária concluído")
         except Exception:
-            logger.exception("Falha no job agendado para %s", processadora)
+            logger.exception("Falha no job agendado de coleta diária")
 
     def _parse_horario(self) -> tuple[int, int]:
         partes = self._horario.split(":")

@@ -29,13 +29,13 @@ def test_iniciar_com_horario_invalido_nao_inicia_scheduler():
     mock_cls.return_value.start.assert_not_called()
 
 
-def test_iniciar_agenda_um_job_por_processadora():
-    with patch("app.services.scheduler.BackgroundScheduler") as mock_cls, \
-         patch("app.services.scheduler.load_processadoras_config", return_value=_config_duas_processadoras()):
+def test_iniciar_agenda_um_unico_job_diario():
+    # Agora é UM job diário consolidado (e-mail único), não um por processadora.
+    with patch("app.services.scheduler.BackgroundScheduler") as mock_cls:
         svc = _svc(horario="08:00")
         svc.iniciar()
     mock_scheduler = mock_cls.return_value
-    assert mock_scheduler.add_job.call_count == 2
+    assert mock_scheduler.add_job.call_count == 1
     mock_scheduler.start.assert_called_once()
 
 
@@ -64,15 +64,19 @@ def test_parar_nao_chama_shutdown_se_nao_iniciado():
     mock_cls.return_value.shutdown.assert_not_called()
 
 
-def test_executar_chama_orchestrator_e_loga_conclusao():
+def test_executar_todas_chama_orchestrator():
     factory = MagicMock()
     svc = SchedulerService(horario="08:00", orchestrator_factory=factory)
-    svc._executar("consigfacil")
-    factory.return_value.executar.assert_called_once_with("consigfacil")
+    with patch("app.services.scheduler.load_processadoras_config",
+               return_value=_config_duas_processadoras()):
+        svc._executar_todas()
+    factory.return_value.executar_todas.assert_called_once_with(["consigfacil", "safeconsig"])
 
 
-def test_executar_captura_excecao_sem_propagar():
+def test_executar_todas_captura_excecao_sem_propagar():
     factory = MagicMock()
-    factory.return_value.executar.side_effect = RuntimeError("scraper quebrou")
+    factory.return_value.executar_todas.side_effect = RuntimeError("scraper quebrou")
     svc = SchedulerService(horario="08:00", orchestrator_factory=factory)
-    svc._executar("consigfacil")  # não deve levantar
+    with patch("app.services.scheduler.load_processadoras_config",
+               return_value=_config_duas_processadoras()):
+        svc._executar_todas()  # não deve levantar

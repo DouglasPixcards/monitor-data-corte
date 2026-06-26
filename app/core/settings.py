@@ -17,6 +17,12 @@ class Settings:
     CHROME_CHANNEL: str = os.getenv("CHROME_CHANNEL", "chrome")
     STORAGE_PATH: str = os.getenv("STORAGE_PATH", "data")
 
+    # Backend de persistência: "file" (JSON/JSONL em STORAGE_PATH) ou "postgres".
+    STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "file")
+    # Conexão SQLAlchemy quando STORAGE_BACKEND=postgres.
+    # Ex: postgresql+psycopg://user:senha@db:5432/monitor
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+
     SMTP_HOST: str = os.getenv("SMTP_HOST", "")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USER: str = os.getenv("SMTP_USER", "")

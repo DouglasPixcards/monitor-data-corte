@@ -161,6 +161,10 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
     records_consolidados: list[dict] = []
 
     for convenio_key, convenio_config in convenios_da_processadora.items():
+        known_failure = bool(
+            convenio_config.get("known_failure")
+            or processadora_config.get("known_failure")
+        )
         if processadora_config.get("integration_type") == "api":
             resultado = _run_api_collector(convenio_key, convenio_config)
         else:
@@ -175,6 +179,7 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
                     "records_count": 0,
                     "erro": str(e),
                     "dados": [],
+                    "known_failure": known_failure,
                 })
                 continue
 
@@ -194,6 +199,7 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
             "records_count": len(resultado.get("dados", [])),
             "erro": resultado.get("erro"),
             "dados": resultado.get("dados", []),
+            "known_failure": known_failure,
         }
 
         resultados_convenios.append(resultado_convenio)

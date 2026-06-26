@@ -18,19 +18,21 @@ def _mudanca(convenio_key: str, antes: str, depois: str) -> Evento:
     )
 
 
-def test_assunto_singular():
+def test_assunto_resumo_uma_mudanca():
+    # Novo formato: assunto carrega a linha de resumo e marca [Ação] quando há mudança.
     assunto, _ = DigestBuilder.build("consigfacil", [_mudanca("belterra", "10/05/2026", "08/05/2026")])
-    assert "1 alteração" in assunto
+    assert "1 mudanças de data" in assunto
     assert "consigfacil" in assunto
+    assert assunto.startswith("[Ação]")
 
 
-def test_assunto_plural():
+def test_assunto_resumo_duas_mudancas():
     mudancas = [
         _mudanca("belterra", "10/05/2026", "08/05/2026"),
         _mudanca("maranhao", "12/05/2026", "10/05/2026"),
     ]
     assunto, _ = DigestBuilder.build("consigfacil", mudancas)
-    assert "2 alterações" in assunto
+    assert "2 mudanças de data" in assunto
 
 
 def test_corpo_contem_dados_da_mudanca():
