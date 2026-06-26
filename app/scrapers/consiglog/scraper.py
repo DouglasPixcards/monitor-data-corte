@@ -35,24 +35,27 @@ _LOGIN_ERROR_KEYWORDS = ("nválid", "inválid", "xpirad", "ncorret", "tativa", "
 class ConsiglogScraper(BaseScraper):
     def authenticate(self) -> None:
         super().authenticate()
-        # ConsigLog exibe popup "Usuário já logado" quando há sessão aberta em outro terminal.
-        # Confirma o desconectar para prosseguir.
+        # ConsigLog exibe um modal AJAX "Usuário já logado" quando há sessão
+        # aberta em outro terminal. Espera o botão de confirmação RENDERIZAR
+        # (timeout curto) antes de decidir que não há popup — is_visible() não
+        # espera, e o modal costuma aparecer alguns ms após o login.
+        confirm_btn = self.page.locator("#ucAjaxModalPopupConfirmacao1_btnConfirmarPopup")
         try:
-            confirm_btn = self.page.locator("#ucAjaxModalPopupConfirmacao1_btnConfirmarPopup")
-            if confirm_btn.is_visible(timeout=3000):
-                logger.info("[ConsigLog] Sessão anterior detectada — confirmando desconexão...")
-                try:
-                    with self.page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
-                        confirm_btn.click()
-                except Exception:
-                    pass
-                try:
-                    self.page.wait_for_load_state("networkidle", timeout=10000)
-                except Exception:
-                    pass
-                logger.info("[ConsigLog] Desconexão confirmada. URL: %s", self.page.url)
+            confirm_btn.wait_for(state="visible", timeout=3000)
+        except Exception:
+            return  # popup não apareceu no prazo → segue o fluxo normal
+
+        logger.info("[ConsigLog] Sessão anterior detectada — confirmando desconexão...")
+        try:
+            with self.page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
+                confirm_btn.click()
         except Exception:
             pass
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=10000)
+        except Exception:
+            pass
+        logger.info("[ConsigLog] Desconexão confirmada. URL: %s", self.page.url)
 
     def validate_access(self) -> None:
         if self.page is None:
