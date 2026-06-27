@@ -32,8 +32,9 @@ def _categorizar(eventos: list[Evento]) -> dict:
     gaps = [e for e in falhas if e.subtipo == "gap"]
     conhecidas = [e for e in falhas if e.subtipo == "conhecida"]
     fora_janela = [e for e in falhas if e.categoria == "fora_janela"]
+    credencial_expirada = [e for e in falhas if e.categoria == "credencial_expirada"]
     reais = [e for e in falhas
-             if e.categoria not in ("sem_dado", "nao_executou", "fora_janela")
+             if e.categoria not in ("sem_dado", "nao_executou", "fora_janela", "credencial_expirada")
              and e.subtipo != "conhecida"]
     falhas_novas = [e for e in reais if e.subtipo == "falha_nova"]
     persistentes = [e for e in reais if e.subtipo == "persistente"]
@@ -43,6 +44,7 @@ def _categorizar(eventos: list[Evento]) -> dict:
         "sem_dado": sem_dado, "gaps": gaps, "conhecidas": conhecidas,
         "falhas_novas": falhas_novas, "persistentes": persistentes,
         "fora_janela": fora_janela,
+        "credencial_expirada": credencial_expirada,
     }
 
 
@@ -56,7 +58,7 @@ def _resumo(cat: dict, verificados: int, coletados: int, prefixo: str = "") -> s
 
 
 def _precisa_acao(cat: dict) -> bool:
-    return bool(cat["mudancas"] or cat["falhas_novas"] or cat["gaps"] or cat["sem_dado"])
+    return bool(cat["mudancas"] or cat["falhas_novas"] or cat["gaps"] or cat["sem_dado"] or cat["credencial_expirada"])
 
 
 # ── Seções (recebem `rotulo`: callable Evento -> texto do convênio) ────────────
@@ -115,6 +117,8 @@ def _montar_corpo(titulo, resumo, disclaimer_html, cat, rotulo, extra_topo="") -
     partes: list[str] = []
     if cat["mudancas"]:
         partes.append(_secao_mudancas(cat["mudancas"], rotulo))
+    if cat["credencial_expirada"]:
+        partes.append(_secao_falhas("🔑 Credencial expirada — renovar a senha no portal", cat["credencial_expirada"], rotulo))
     if cat["falhas_novas"]:
         partes.append(_secao_falhas("🔴 Falhas novas", cat["falhas_novas"], rotulo))
     if cat["sem_dado"]:

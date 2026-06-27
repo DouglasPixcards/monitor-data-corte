@@ -65,3 +65,36 @@ def test_fora_janela_vai_pro_rodape_sem_acao():
     assunto, corpo = DigestBuilder.build("consigup", [_ev_fora_janela()], lote)
     assert "Fora da janela de acesso" in corpo
     assert not assunto.startswith("[Ação]")
+
+
+def _ev_credencial_expirada():
+    return Evento(
+        id=str(uuid.uuid4()), tipo=EventoTipo.ERRO_COLETA, processadora="consiglog",
+        convenio_key="cotia_sp", execucao_id="e1", detectado_em="2026-06-26T10:00:00",
+        categoria="credencial_expirada", subtipo="falha_nova",
+        detalhe="[ConsigLog] Autenticação falhou — Senha do usuário está expirada.",
+    )
+
+
+def test_credencial_expirada_destaque_acionavel_no_topo():
+    lote = {"processadora": "consiglog", "total_convenios": 1, "success_count": 0,
+            "convenios": [{"convenio_key": "cotia_sp", "convenio_nome": "Cotia-SP"}]}
+    assunto, corpo = DigestBuilder.build("consiglog", [_ev_credencial_expirada()], lote)
+    assert "Credencial expirada" in corpo
+    assert assunto.startswith("[Ação]")
+
+
+def test_credencial_expirada_persistente_ainda_acionavel():
+    # Garante o requisito da spec: credencial expirada é AÇÃO mesmo se persistente
+    # (não cai no rodapé). Uma regressão filtrando por subtipo passaria sem este teste.
+    ev = Evento(
+        id=str(uuid.uuid4()), tipo=EventoTipo.ERRO_COLETA, processadora="consiglog",
+        convenio_key="cotia_sp", execucao_id="e1", detectado_em="2026-06-26T10:00:00",
+        categoria="credencial_expirada", subtipo="persistente",
+        detalhe="[ConsigLog] Senha do usuário está expirada.",
+    )
+    lote = {"processadora": "consiglog", "total_convenios": 1, "success_count": 0,
+            "convenios": [{"convenio_key": "cotia_sp", "convenio_nome": "Cotia-SP"}]}
+    assunto, corpo = DigestBuilder.build("consiglog", [ev], lote)
+    assert "Credencial expirada" in corpo
+    assert assunto.startswith("[Ação]")

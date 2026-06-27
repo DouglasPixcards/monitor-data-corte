@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.core.exceptions import CollectionError
 from app.scrapers.consiglog.scraper import ConsiglogScraper
 
 LOGIN2_URL = "https://saec.consiglog.com.br/LoginSegundaEtapa.aspx"
@@ -67,27 +68,29 @@ def test_pos_login_gvorgao_passa_mesmo_em_loginsegundaetapa():
     s.validate_access()  # não deve levantar
 
 
-def test_senha_expirada_falha_com_mensagem():
+def test_senha_expirada_falha_com_categoria():
     s = _scraper()
     s.page = _FakePage(LOGIN2_URL, {
         "#txtLogin": (1, "DCELESTINO"),
         "#txtSenha": (1, ""),
         "body": (1, "Senha do usuário está expirada."),
     })
-    with pytest.raises(RuntimeError) as ei:
+    with pytest.raises(CollectionError) as ei:
         s.validate_access()
+    assert ei.value.categoria == "credencial_expirada"
     assert "expirada" in str(ei.value).lower()
 
 
-def test_login_invalido_falha():
+def test_login_invalido_falha_com_categoria_auth():
     s = _scraper()
     s.page = _FakePage(LOGIN2_URL, {
         "#txtLogin": (1, ""),
         "#txtSenha": (1, ""),
         "body": (1, "Usuário ou senha inválidos"),
     })
-    with pytest.raises(RuntimeError):
+    with pytest.raises(CollectionError) as ei:
         s.validate_access()
+    assert ei.value.categoria == "auth_falhou"
 
 
 def test_dashboard_sair_passa():

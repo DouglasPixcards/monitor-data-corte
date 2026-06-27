@@ -41,7 +41,7 @@ def _erros_tecnicos_retentaveis(resultado_lote: dict) -> list[dict]:
         if c.get("known_failure"):
             continue
         categoria = c.get("erro_categoria") or classificar_erro(c.get("erro"))
-        if categoria == "auth_falhou":
+        if categoria in ("auth_falhou", "credencial_expirada"):
             continue
         tecnicos.append(c)
     return tecnicos

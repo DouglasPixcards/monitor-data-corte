@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.core.exceptions import CollectionError
 from app.scrapers.base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
@@ -78,9 +79,11 @@ class ConsiglogScraper(BaseScraper):
         tem_campos_login = any(self._tem(sel) for sel in _LOGIN_FIELD_SELECTORS)
         error_msg = self._mensagem_erro_login()
         if tem_campos_login and error_msg:
-            raise RuntimeError(
+            categoria = "credencial_expirada" if "xpirad" in error_msg.lower() else "auth_falhou"
+            raise CollectionError(
                 f"[ConsigLog] Autenticação falhou — login recusado. "
-                f"Mensagem: {error_msg!r}. URL: {current_url}"
+                f"Mensagem: {error_msg!r}. URL: {current_url}",
+                categoria=categoria,
             )
 
         # 3) Nem sucesso reconhecível nem erro explícito: não derruba pela URL.
@@ -181,4 +184,4 @@ class ConsiglogScraper(BaseScraper):
                 logger.debug("[ConsigLog] Tentativa %d falhou: %s", tentativa + 1, e)
                 self.page.wait_for_timeout(2000)
 
-        raise RuntimeError(f"[ConsigLog] Falha ao extrair tabela de prazos após 3 tentativas: {ultimo_erro}")
+        raise CollectionError(f"[ConsigLog] Falha ao extrair tabela de prazos após 3 tentativas: {ultimo_erro}", categoria="portal_mudou")

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 CATEGORIAS = (
     "auth_falhou",
+    "credencial_expirada",
     "rede",
     "fora_janela",
     "sem_dado",
@@ -23,6 +24,7 @@ CATEGORIAS = (
 # Frase em português por categoria — camada humana do e-mail.
 CATEGORIA_FRASE = {
     "auth_falhou": "falha de autenticação (login recusado)",
+    "credencial_expirada": "credencial expirada — renovar a senha no portal",
     "rede": "falha de rede/conexão durante a coleta",
     "fora_janela": "fora da janela de acesso do portal — coleta adiada",
     "sem_dado": "coletou mas não retornou data de corte",

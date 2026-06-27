@@ -197,3 +197,14 @@ def test_retry_prefere_categoria_tipada_credencial(orch):
     with patch("app.services.orchestrator.executar_coleta_lote", mock):
         o.coletar("consigfacil", retentar_tecnico=True)
     assert mock.call_count == 1  # tipado=credencial -> não re-coleta
+
+
+def test_credencial_expirada_nao_recoleta(orch):
+    # credencial_expirada é determinística (renovar a senha) → não re-coleta.
+    o, _ = orch
+    conv = _conv("a", "erro", "Senha expirada")
+    conv["erro_categoria"] = "credencial_expirada"
+    mock = MagicMock(return_value=_lote([conv]))
+    with patch("app.services.orchestrator.executar_coleta_lote", mock):
+        o.coletar("consigfacil", retentar_tecnico=True)
+    assert mock.call_count == 1
