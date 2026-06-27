@@ -213,3 +213,17 @@ def test_fora_janela_gera_evento_de_rodape():
     fj = [e for e in eventos if e.tipo == EventoTipo.ERRO_COLETA and e.categoria == "fora_janela"]
     assert len(fj) == 1
     assert fj[0].subtipo == "fora_janela"
+
+
+def test_comparador_prefere_erro_categoria_tipada():
+    # erro_categoria explícito vence a heurística de string (que diria "timeout").
+    eventos = ComparadorService().comparar(
+        processadora="p", execucao_id="e", anteriores=[], atuais=[],
+        status_anterior={"k": "coletado"},
+        status_atual={"k": {"status": "erro", "erro": "Timeout 30000ms exceeded",
+                            "erro_categoria": "portal_mudou", "known_failure": False,
+                            "records_count": 0, "convenio_nome": "K"}},
+    )
+    erro = [e for e in eventos
+            if e.tipo == EventoTipo.ERRO_COLETA and e.subtipo in ("falha_nova", "persistente")][0]
+    assert erro.categoria == "portal_mudou"

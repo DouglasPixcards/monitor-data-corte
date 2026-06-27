@@ -26,7 +26,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from app.integrations.processors.base.exceptions import IntegrationError
+from app.integrations.processors.base.exceptions import AuthenticationError, IntegrationError
 from app.integrations.processors.safeconsig.client import SafeConsigClient
 from app.integrations.processors.safeconsig.config import SafeConsigConfig
 
@@ -94,22 +94,31 @@ class SafeConsigApiCollector:
                 "status": "erro",
                 "dados": [],
                 "erro": f"Campo 'credential_env_key' ausente na config do convênio '{convenio_key}'.",
+                "erro_categoria": None,
             }
 
         try:
             config = SafeConsigConfig.from_env(env_key)
             client = SafeConsigClient(config)
             client.autenticar()
+        except AuthenticationError as exc:
+            logger.error("[SafeConsigCollector] Falha de autenticação (%s): %s", convenio_key, exc)
+            return {"status": "erro", "dados": [], "erro": str(exc), "erro_categoria": "auth_falhou"}
         except IntegrationError as exc:
-            logger.error("[SafeConsigCollector] Falha na autenticação (%s): %s", convenio_key, exc)
-            return {"status": "erro", "dados": [], "erro": str(exc)}
+            logger.error("[SafeConsigCollector] Falha (%s): %s", convenio_key, exc)
+            cat = "rede" if "rede" in str(exc).lower() else None
+            return {"status": "erro", "dados": [], "erro": str(exc), "erro_categoria": cat}
 
         data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         try:
             resultado = client.consultar_mes_primeiro_desconto(data_hora)
+        except AuthenticationError as exc:
+            logger.error("[SafeConsigCollector] Falha de autenticação (%s): %s", convenio_key, exc)
+            return {"status": "erro", "dados": [], "erro": str(exc), "erro_categoria": "auth_falhou"}
         except IntegrationError as exc:
-            logger.error("[SafeConsigCollector] Falha ao consultar competência (%s): %s", convenio_key, exc)
-            return {"status": "erro", "dados": [], "erro": str(exc)}
+            logger.error("[SafeConsigCollector] Falha (%s): %s", convenio_key, exc)
+            cat = "rede" if "rede" in str(exc).lower() else None
+            return {"status": "erro", "dados": [], "erro": str(exc), "erro_categoria": cat}
 
         competencia = resultado.get("competencia")
         if not competencia:
@@ -117,6 +126,7 @@ class SafeConsigApiCollector:
                 "status": "erro",
                 "dados": [],
                 "erro": f"API não retornou competência para dataHora={data_hora!r}.",
+                "erro_categoria": None,
             }
 
         # Estima a data de corte: um dia antes da virada de competência.
@@ -142,4 +152,5 @@ class SafeConsigApiCollector:
                 "data_corte": data_corte,
             }],
             "erro": None,
+            "erro_categoria": None,
         }

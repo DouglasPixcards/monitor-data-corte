@@ -12,6 +12,7 @@ from playwright.sync_api import (
     Error as PlaywrightError,
 )
 
+from app.core.exceptions import CollectionError
 from app.core.settings import settings
 from app.auth.base_auth_strategy import BaseAuthStrategy
 
@@ -124,8 +125,18 @@ class BaseScraper(ABC):
                 "status": "ok",
                 "dados": dados,
                 "erro": None,
+                "erro_categoria": None,
             }
 
+        except CollectionError as e:
+            return {
+                "processadora": self.processadora,
+                "convenio": self.convenio_config.get("nome"),
+                "status": "erro",
+                "dados": [],
+                "erro": str(e),
+                "erro_categoria": e.categoria,
+            }
         except Exception as e:
             return {
                 "processadora": self.processadora,
@@ -133,6 +144,7 @@ class BaseScraper(ABC):
                 "status": "erro",
                 "dados": [],
                 "erro": str(e),
+                "erro_categoria": None,
             }
 
         finally:

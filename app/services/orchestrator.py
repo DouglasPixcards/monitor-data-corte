@@ -40,7 +40,8 @@ def _erros_tecnicos_retentaveis(resultado_lote: dict) -> list[dict]:
             continue
         if c.get("known_failure"):
             continue
-        if classificar_erro(c.get("erro")) == "auth_falhou":
+        categoria = c.get("erro_categoria") or classificar_erro(c.get("erro"))
+        if categoria == "auth_falhou":
             continue
         tecnicos.append(c)
     return tecnicos
@@ -144,6 +145,7 @@ class ColetaOrchestrator:
                 "records_count": c.get("records_count", 0),
                 "known_failure": bool(c.get("known_failure")),
                 "convenio_nome": c.get("convenio_nome"),
+                "erro_categoria": c.get("erro_categoria"),
             }
         # Numa rodada filtrada (1 convênio) não dá pra inferir gap das outras.
         if convenio_filter:

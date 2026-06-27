@@ -211,6 +211,7 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
                     "erro": str(e),
                     "dados": [],
                     "known_failure": known_failure,
+                    "erro_categoria": "auth_falhou",
                 })
                 continue
 
@@ -231,6 +232,7 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
             "erro": resultado.get("erro"),
             "dados": resultado.get("dados", []),
             "known_failure": known_failure,
+            "erro_categoria": resultado.get("erro_categoria"),
         }
 
         resultados_convenios.append(resultado_convenio)

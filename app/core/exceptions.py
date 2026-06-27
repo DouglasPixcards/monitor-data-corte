@@ -7,4 +7,7 @@ class AuthenticationError(Exception):
 
 
 class CollectionError(Exception):
-    pass
+    """Erro de coleta com categoria conhecida (tipada) — evita a heurística de string."""
+    def __init__(self, mensagem: str, categoria: str | None = None) -> None:
+        super().__init__(mensagem)
+        self.categoria = categoria

@@ -186,3 +186,14 @@ def test_teto_por_convenio(orch):
     with patch("app.services.orchestrator.executar_coleta_lote", mock):
         o.coletar("consigfacil", retentar_tecnico=True)
     assert mock.call_count == 3
+
+
+def test_retry_prefere_categoria_tipada_credencial(orch):
+    # erro_categoria diz credencial; a string "Timeout" enganaria a heurística como técnico.
+    o, _ = orch
+    conv = _conv("a", "erro", "Timeout 30000ms exceeded")
+    conv["erro_categoria"] = "auth_falhou"
+    mock = MagicMock(return_value=_lote([conv]))
+    with patch("app.services.orchestrator.executar_coleta_lote", mock):
+        o.coletar("consigfacil", retentar_tecnico=True)
+    assert mock.call_count == 1  # tipado=credencial -> não re-coleta

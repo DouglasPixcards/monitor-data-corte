@@ -138,7 +138,7 @@ class ComparadorService:
                 subtipo = "persistente" if era_problematico else "falha_nova"
                 erro = erro or "Coleta concluiu sem retornar data de corte."
             else:
-                categoria = classificar_erro(erro)
+                categoria = cur.get("erro_categoria") or classificar_erro(erro)
                 subtipo = "persistente" if era_problematico else "falha_nova"
             eventos.append(self._ev_status(
                 processadora, convenio_key, execucao_id, agora,
