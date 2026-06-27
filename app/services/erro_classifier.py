@@ -11,6 +11,7 @@ from __future__ import annotations
 CATEGORIAS = (
     "auth_falhou",
     "rede",
+    "fora_janela",
     "sem_dado",
     "timeout",
     "portal_mudou",
@@ -23,6 +24,7 @@ CATEGORIAS = (
 CATEGORIA_FRASE = {
     "auth_falhou": "falha de autenticação (login recusado)",
     "rede": "falha de rede/conexão durante a coleta",
+    "fora_janela": "fora da janela de acesso do portal — coleta adiada",
     "sem_dado": "coletou mas não retornou data de corte",
     "timeout": "tempo esgotado durante a coleta",
     "portal_mudou": "página ou seletor mudou no portal",

@@ -142,3 +142,15 @@ def test_lote_misto_credencial_e_tecnico_retenta(orch):
     with patch("app.services.orchestrator.executar_coleta_lote", mock):
         o.coletar("consigfacil", retentar_tecnico=True)
     assert mock.call_count == 3
+
+
+def test_fora_janela_nao_retenta(orch):
+    # fora_janela não é erro técnico → não dispara o retry rápido do lote,
+    # mesmo no caminho agendado (retentar_tecnico=True).
+    o, _ = orch
+    mock = MagicMock(return_value=_lote([
+        _conv("muana", "fora_janela", "[ConsigUp] Fora da janela de acesso (seg–sex 08:00–16:45) — coleta pulada nesta rodada."),
+    ]))
+    with patch("app.services.orchestrator.executar_coleta_lote", mock):
+        o.coletar("consigup", retentar_tecnico=True)
+    assert mock.call_count == 1

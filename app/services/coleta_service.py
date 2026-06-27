@@ -10,6 +10,7 @@ from app.config.credential_loader import CredentialNotFoundError, load_credentia
 from app.config.portal_registry import get_scraper_class
 from app.core.enums import AuthType, CollectionStatus
 from app.core.loader import load_processadoras_config
+from app.services.janela_coleta import PROCESSADORA as CONSIGUP, dentro_da_janela_consigup
 from app.services.storage_helpers import now_iso
 from app.utils.dates import normalizar_data_corte
 
@@ -124,14 +125,16 @@ def _calcular_status_lote(resultados_convenios: list[dict]) -> str:
         return CollectionStatus.ERROR
 
     total = len(resultados_convenios)
+    fora = sum(1 for item in resultados_convenios if item["status"] == CollectionStatus.FORA_JANELA)
+    if fora == total:
+        return CollectionStatus.FORA_JANELA  # nenhum tocou o portal — não é falha
+
+    considerados = total - fora
     sucessos = sum(1 for item in resultados_convenios if item["status"] == CollectionStatus.OK)
-
-    if sucessos == total:
+    if sucessos == considerados:
         return CollectionStatus.OK
-
     if sucessos == 0:
         return CollectionStatus.ERROR
-
     return CollectionStatus.PARTIAL_SUCCESS
 
 
@@ -165,6 +168,20 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
             convenio_config.get("known_failure")
             or processadora_config.get("known_failure")
         )
+        # Janela de acesso do ConsigUp: fora do horário, pula sem tocar o portal
+        # (cobre tentativa inicial, retry de 60min e on-demand — todos passam aqui).
+        if processadora_key == CONSIGUP and not dentro_da_janela_consigup():
+            logger.info("[ConsigUp] %s fora da janela de acesso — coleta pulada nesta rodada.", convenio_key)
+            resultados_convenios.append({
+                "convenio_key": convenio_key,
+                "convenio_nome": convenio_config.get("nome"),
+                "status": "fora_janela",
+                "records_count": 0,
+                "erro": "[ConsigUp] Fora da janela de acesso (seg–sex 08:00–16:45) — coleta pulada nesta rodada.",
+                "dados": [],
+                "known_failure": known_failure,
+            })
+            continue
         if processadora_config.get("integration_type") == "api":
             resultado = _run_api_collector(convenio_key, convenio_config)
         else:
@@ -232,7 +249,8 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
         "status": status_lote,
         "total_convenios": len(resultados_convenios),
         "success_count": sum(1 for item in resultados_convenios if item["status"] == "ok"),
-        "error_count": sum(1 for item in resultados_convenios if item["status"] != "ok"),
+        "error_count": sum(1 for item in resultados_convenios if item["status"] not in ("ok", "fora_janela")),
+        "fora_janela_count": sum(1 for item in resultados_convenios if item["status"] == "fora_janela"),
         "records": records_consolidados,
         "convenios": resultados_convenios,
     }

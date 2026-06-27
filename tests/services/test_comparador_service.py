@@ -198,3 +198,18 @@ def test_status_recuperado_de_sem_dado():
         status_atual={"x": _status("ok")},
     )
     assert any(e.tipo == EventoTipo.RECUPERADO for e in eventos)
+
+
+def test_fora_janela_gera_evento_de_rodape():
+    eventos = ComparadorService().comparar(
+        processadora="consigup", execucao_id="e1",
+        anteriores=[], atuais=[],
+        status_anterior={"muana": "coletado"},
+        status_atual={"muana": {"status": "fora_janela",
+                                "erro": "[ConsigUp] Fora da janela de acesso (seg–sex 08:00–16:45) — coleta pulada nesta rodada.",
+                                "known_failure": False, "records_count": 0,
+                                "convenio_nome": "PREF DE MUANA - PA"}},
+    )
+    fj = [e for e in eventos if e.tipo == EventoTipo.ERRO_COLETA and e.categoria == "fora_janela"]
+    assert len(fj) == 1
+    assert fj[0].subtipo == "fora_janela"

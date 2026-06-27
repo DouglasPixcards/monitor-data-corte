@@ -12,6 +12,7 @@ class CollectionStatus(str, Enum):
     OK = "ok"
     ERROR = "erro"
     PARTIAL_SUCCESS = "partial_success"
+    FORA_JANELA = "fora_janela"
 
 
 class EventoTipo(str, Enum):

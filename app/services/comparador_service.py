@@ -118,6 +118,15 @@ class ComparadorService:
                     ))
                 continue
 
+            # Pulado por janela de acesso — pendência informativa (rodapé).
+            if st == "fora_janela":
+                eventos.append(self._ev_status(
+                    processadora, convenio_key, execucao_id, agora,
+                    tipo=EventoTipo.ERRO_COLETA, categoria="fora_janela",
+                    subtipo="fora_janela", detalhe=cur.get("erro"),
+                ))
+                continue
+
             # 3) Falhou (erro) OU coletou sem data de corte (sem_dado) hoje.
             #    "não coletava antes" = prev em (falhou, sem_dado, None).
             era_problematico = prev in ("falhou", "sem_dado")

@@ -30,10 +30,13 @@ def _erros_tecnicos_retentaveis(resultado_lote: dict) -> list[dict]:
     (``auth_falhou``) e o convênio NÃO é ``known_failure``. Erros de credencial
     e falhas já mapeadas são determinísticos — re-tentar não muda o resultado,
     só gasta tempo de automação.
+
+    ``fora_janela`` (pulado por janela de acesso do ConsigUp) também é excluído:
+    não é um erro técnico e re-tentar não muda nada antes da janela abrir.
     """
     tecnicos: list[dict] = []
     for c in resultado_lote.get("convenios", []):
-        if c.get("status") == "ok":
+        if c.get("status") in ("ok", "fora_janela"):
             continue
         if c.get("known_failure"):
             continue
@@ -127,7 +130,9 @@ class ColetaOrchestrator:
         status_atual: dict[str, dict] = {}
         for c in resultado_lote.get("convenios", []):
             ck = c["convenio_key"]
-            if c.get("status") != "ok":
+            if c.get("status") == "fora_janela":
+                efetivo = "fora_janela"
+            elif c.get("status") != "ok":
                 efetivo = "erro"
             elif ck in convs_com_dado:
                 efetivo = "ok"
@@ -153,7 +158,7 @@ class ColetaOrchestrator:
                 "erro": c.get("erro"),
             }
             for c in resultado_lote.get("convenios", [])
-            if c.get("status") != "ok"
+            if c.get("status") not in ("ok", "fora_janela")
         ]
         execucao = Execucao(
             id=str(uuid.uuid4()),

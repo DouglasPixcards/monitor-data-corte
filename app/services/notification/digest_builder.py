@@ -31,8 +31,10 @@ def _categorizar(eventos: list[Evento]) -> dict:
     sem_dado = [e for e in falhas if e.categoria == "sem_dado"]
     gaps = [e for e in falhas if e.subtipo == "gap"]
     conhecidas = [e for e in falhas if e.subtipo == "conhecida"]
+    fora_janela = [e for e in falhas if e.categoria == "fora_janela"]
     reais = [e for e in falhas
-             if e.categoria not in ("sem_dado", "nao_executou") and e.subtipo != "conhecida"]
+             if e.categoria not in ("sem_dado", "nao_executou", "fora_janela")
+             and e.subtipo != "conhecida"]
     falhas_novas = [e for e in reais if e.subtipo == "falha_nova"]
     persistentes = [e for e in reais if e.subtipo == "persistente"]
 
@@ -40,6 +42,7 @@ def _categorizar(eventos: list[Evento]) -> dict:
         "mudancas": mudancas, "novos": novos, "recuperados": recuperados,
         "sem_dado": sem_dado, "gaps": gaps, "conhecidas": conhecidas,
         "falhas_novas": falhas_novas, "persistentes": persistentes,
+        "fora_janela": fora_janela,
     }
 
 
@@ -128,6 +131,8 @@ def _montar_corpo(titulo, resumo, disclaimer_html, cat, rotulo, extra_topo="") -
         rodape.append(_secao_falhas("Falhas persistentes", cat["persistentes"], rotulo))
     if cat["conhecidas"]:
         rodape.append(_secao_falhas("Falhas conhecidas (já mapeadas)", cat["conhecidas"], rotulo))
+    if cat["fora_janela"]:
+        rodape.append(_secao_falhas("Fora da janela de acesso (coleta adiada)", cat["fora_janela"], rotulo))
 
     if not partes and not rodape:
         partes.append('<p style="color:#2e7d32">✅ Nenhuma novidade — a coleta rodou normalmente.</p>')

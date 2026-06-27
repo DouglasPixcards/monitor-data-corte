@@ -1,3 +1,5 @@
+import uuid
+
 from app.services.notification.digest_builder import DigestBuilder
 from app.core.models import Evento
 from app.core.enums import EventoTipo
@@ -46,3 +48,20 @@ def test_corpo_contem_dados_da_mudanca():
 def test_corpo_e_html():
     _, corpo = DigestBuilder.build("consigfacil", [_mudanca("b", "x", "y")])
     assert "<html" in corpo.lower() or "<table" in corpo.lower()
+
+
+def _ev_fora_janela():
+    return Evento(
+        id=str(uuid.uuid4()), tipo=EventoTipo.ERRO_COLETA, processadora="consigup",
+        convenio_key="muana", execucao_id="e1", detectado_em="2026-06-26T18:00:00",
+        categoria="fora_janela", subtipo="fora_janela",
+        detalhe="[ConsigUp] Fora da janela de acesso (seg–sex 08:00–16:45) — coleta pulada nesta rodada.",
+    )
+
+
+def test_fora_janela_vai_pro_rodape_sem_acao():
+    lote = {"processadora": "consigup", "total_convenios": 1, "success_count": 0,
+            "convenios": [{"convenio_key": "muana", "convenio_nome": "PREF DE MUANA - PA"}]}
+    assunto, corpo = DigestBuilder.build("consigup", [_ev_fora_janela()], lote)
+    assert "Fora da janela de acesso" in corpo
+    assert not assunto.startswith("[Ação]")
