@@ -30,3 +30,8 @@ __pycache__/
 # planilha com credenciais
 links_processadoras.xlsx
 .gstack/
+
+# segredos — NUNCA commitar (lição do incidente muana)
+secrets/
+.env.*
+!.env.example
