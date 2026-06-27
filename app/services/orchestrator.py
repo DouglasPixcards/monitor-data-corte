@@ -203,16 +203,9 @@ class ColetaOrchestrator:
                                eventos=eventos, resultado_lote=resultado_lote)
 
     def _coletar_lote_com_retry(self, processadora: str, convenio_filter: str | None) -> dict:
-        """Roda o lote e re-tenta enquanto houver erro técnico (teto _MAX_RETENTATIVAS_LOTE).
-
-        Pula o retry quando 100% das falhas são de credencial (ou known_failure):
-        nesse caso re-tentar não recupera nada. Mantém o resultado da ÚLTIMA
-        tentativa (granularidade de lote).
-
-        DÍVIDA DE V2: num lote com falhas MISTAS (credencial + técnica) o lote
-        inteiro é re-executado — inclusive os convênios de credencial, que
-        falharão de novo (≤3 coletas no total). Granularidade por-convênio fica
-        para V2.
+        """Roda o lote e re-coleta POR-CONVÊNIO os que falham por erro técnico
+        (teto _MAX_RETENTATIVAS_LOTE). Convênios ok / credencial / known_failure /
+        fora_janela ficam intocados — não são re-coletados.
         """
         resultado_lote = executar_coleta_lote(processadora, convenio_filter=convenio_filter)
         for tentativa in range(1, _MAX_RETENTATIVAS_LOTE + 1):
@@ -220,12 +213,28 @@ class ColetaOrchestrator:
             if not tecnicos:
                 break
             logger.warning(
-                "Retentativa %d/%d do lote %s — %d erro(s) técnico(s): %s",
+                "Retentativa %d/%d do lote %s — re-coletando %d convênio(s): %s",
                 tentativa, _MAX_RETENTATIVAS_LOTE, processadora, len(tecnicos),
                 ", ".join(c.get("convenio_key", "?") for c in tecnicos),
             )
-            resultado_lote = executar_coleta_lote(processadora, convenio_filter=convenio_filter)
+            for c in tecnicos:
+                ck = c["convenio_key"]
+                sub = executar_coleta_lote(processadora, convenio_filter=ck)
+                resultado_lote = self._merge_convenio(processadora, resultado_lote, ck, sub)
         return resultado_lote
+
+    @staticmethod
+    def _merge_convenio(processadora: str, lote: dict, convenio_key: str, sub_lote: dict) -> dict:
+        """Substitui o resultado de 1 convênio no lote pela re-coleta e recomputa o resumo."""
+        from app.services.coleta_service import resumir_lote  # noqa: PLC0415
+
+        novo = next((c for c in sub_lote.get("convenios", []) if c.get("convenio_key") == convenio_key), None)
+        if novo is None:
+            return lote
+        convenios = [novo if c.get("convenio_key") == convenio_key else c for c in lote.get("convenios", [])]
+        records = [r for r in lote.get("records", []) if r.get("convenio_key") != convenio_key]
+        records += [r for r in sub_lote.get("records", []) if r.get("convenio_key") == convenio_key]
+        return resumir_lote(processadora, convenios, records)
 
     # ------------------------------------------------------------------
     # Notificação

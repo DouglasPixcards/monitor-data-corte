@@ -120,6 +120,20 @@ def _filtrar_convenios_da_processadora(
     }
 
 
+def resumir_lote(processadora_key: str, convenios: list[dict], records: list[dict]) -> dict:
+    """Monta o dict de resultado do lote a partir dos convênios e records."""
+    return {
+        "processadora": processadora_key,
+        "status": _calcular_status_lote(convenios),
+        "total_convenios": len(convenios),
+        "success_count": sum(1 for c in convenios if c["status"] == "ok"),
+        "error_count": sum(1 for c in convenios if c["status"] not in ("ok", "fora_janela")),
+        "fora_janela_count": sum(1 for c in convenios if c["status"] == "fora_janela"),
+        "records": records,
+        "convenios": convenios,
+    }
+
+
 def _calcular_status_lote(resultados_convenios: list[dict]) -> str:
     if not resultados_convenios:
         return CollectionStatus.ERROR
@@ -242,15 +256,4 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
                 ),
             })
 
-    status_lote = _calcular_status_lote(resultados_convenios)
-
-    return {
-        "processadora": processadora_key,
-        "status": status_lote,
-        "total_convenios": len(resultados_convenios),
-        "success_count": sum(1 for item in resultados_convenios if item["status"] == "ok"),
-        "error_count": sum(1 for item in resultados_convenios if item["status"] not in ("ok", "fora_janela")),
-        "fora_janela_count": sum(1 for item in resultados_convenios if item["status"] == "fora_janela"),
-        "records": records_consolidados,
-        "convenios": resultados_convenios,
-    }
+    return resumir_lote(processadora_key, resultados_convenios, records_consolidados)

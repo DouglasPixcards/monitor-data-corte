@@ -1,9 +1,9 @@
-"""Retry de LOTE em erros técnicos (transitórios).
+"""Retry POR-CONVÊNIO em erros técnicos (transitórios).
 
-Regra (granularidade V1 = nível de lote): pula o retry só quando 100% das
-falhas são de credencial (auth_falhou) ou known_failure — re-tentar não muda
-um erro determinístico. Havendo ≥1 erro técnico, re-tenta o lote inteiro
-(teto _MAX_RETENTATIVAS_LOTE = 2 → no máximo 3 coletas).
+Re-coleta só o(s) convênio(s) com erro técnico — não o lote inteiro. Pula um
+convênio quando a falha é de credencial (auth_falhou), known_failure ou
+fora_janela (erro determinístico, re-tentar não muda nada). Teto
+_MAX_RETENTATIVAS_LOTE = 2 rodadas → no máximo 3 coletas por convênio.
 
 O retry só roda no caminho AGENDADO (``coletar(..., retentar_tecnico=True)``,
 usado por ``executar_todas`` e pelo runner diário). O caminho on-demand da API
@@ -131,9 +131,9 @@ def test_respeita_teto_de_retentativas(orch):
     assert mock.call_count == 3  # 1 inicial + 2 retentativas (teto), nunca mais
 
 
-def test_lote_misto_credencial_e_tecnico_retenta(orch):
-    # DÍVIDA V2: re-tenta o lote inteiro (a credencial vai junto) por não ter
-    # granularidade por-convênio. Aqui só validamos que o gatilho dispara.
+def test_lote_misto_recoleta_so_o_tecnico_nao_a_credencial(orch):
+    # Lote misto credencial+técnico: re-coleta SÓ o técnico (b); a credencial (a)
+    # nunca é re-coletada (paga a antiga dívida V2 de granularidade por-convênio).
     o, _ = orch
     mock = MagicMock(return_value=_lote([
         _conv("a", "erro", "Autenticação falhou"),
@@ -141,7 +141,8 @@ def test_lote_misto_credencial_e_tecnico_retenta(orch):
     ]))
     with patch("app.services.orchestrator.executar_coleta_lote", mock):
         o.coletar("consigfacil", retentar_tecnico=True)
-    assert mock.call_count == 3
+    assert mock.call_count == 3  # inicial + 2 re-coletas de b (teto)
+    assert [c.kwargs.get("convenio_filter") for c in mock.call_args_list] == [None, "b", "b"]
 
 
 def test_fora_janela_nao_retenta(orch):
@@ -154,3 +155,34 @@ def test_fora_janela_nao_retenta(orch):
     with patch("app.services.orchestrator.executar_coleta_lote", mock):
         o.coletar("consigup", retentar_tecnico=True)
     assert mock.call_count == 1
+
+
+def test_recoleta_so_o_tecnico_que_falhou(orch):
+    o, execucao_repo = orch
+    inicial = _lote([_conv("a", "ok"), _conv("b", "erro", "Timeout 30000ms exceeded")])
+    sub_b_ok = _lote([_conv("b", "ok")])
+    mock = MagicMock(side_effect=[inicial, sub_b_ok])
+    with patch("app.services.orchestrator.executar_coleta_lote", mock):
+        o.coletar("consigfacil", retentar_tecnico=True)
+    assert mock.call_count == 2
+    assert mock.call_args_list[1].kwargs.get("convenio_filter") == "b"
+    execucao = execucao_repo.salvar.call_args[0][0]
+    assert execucao.success_count == 2 and execucao.error_count == 0
+
+
+def test_nao_recoleta_credencial_so_o_tecnico(orch):
+    o, _ = orch
+    inicial = _lote([_conv("a", "erro", "Autenticação falhou"), _conv("b", "erro", "Timeout 30000ms exceeded")])
+    sub_b = _lote([_conv("b", "ok")])
+    mock = MagicMock(side_effect=[inicial, sub_b])
+    with patch("app.services.orchestrator.executar_coleta_lote", mock):
+        o.coletar("consigfacil", retentar_tecnico=True)
+    assert [c.kwargs.get("convenio_filter") for c in mock.call_args_list] == [None, "b"]
+
+
+def test_teto_por_convenio(orch):
+    o, _ = orch
+    mock = MagicMock(return_value=_lote([_conv("b", "erro", "Timeout 30000ms exceeded")]))
+    with patch("app.services.orchestrator.executar_coleta_lote", mock):
+        o.coletar("consigfacil", retentar_tecnico=True)
+    assert mock.call_count == 3
