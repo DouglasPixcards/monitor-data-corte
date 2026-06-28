@@ -101,7 +101,7 @@ class FileEventoRepository(EventoRepository):
                 for r in records:
                     f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    def listar(self, processadora: str, dias: int = 30) -> list[Evento]:
+    def listar(self, processadora: str, dias: int = 30, convenio_key: str | None = None) -> list[Evento]:
         eventos: list[Evento] = []
         hoje = date.today()
         for i in range(dias):
@@ -119,4 +119,6 @@ class FileEventoRepository(EventoRepository):
                             eventos.append(Evento(**dados))
                         except Exception:
                             pass
+        if convenio_key is not None:
+            eventos = [e for e in eventos if e.convenio_key == convenio_key]
         return sorted(eventos, key=lambda e: e.detectado_em, reverse=True)

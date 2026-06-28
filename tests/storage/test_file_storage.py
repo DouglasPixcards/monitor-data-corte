@@ -124,3 +124,17 @@ def test_evento_salvar_lote(base):
 def test_evento_salvar_lote_vazio_nao_falha(base):
     repo = FileEventoRepository(base)
     repo.salvar_lote([])
+
+
+def test_evento_listar_filtra_por_convenio(base):
+    repo = FileEventoRepository(base)
+    repo.salvar_lote([
+        Evento(id="e1", tipo="data_corte_alterada", processadora="consigfacil",
+               convenio_key="belterra", execucao_id="x", detectado_em="2026-06-01T08:00:00"),
+        Evento(id="e2", tipo="data_corte_alterada", processadora="consigfacil",
+               convenio_key="santarem", execucao_id="x", detectado_em="2026-06-02T08:00:00"),
+    ])
+    so_belterra = repo.listar("consigfacil", dias=3650, convenio_key="belterra")
+    assert [e.id for e in so_belterra] == ["e1"]
+    # default None = comportamento atual (todos os convênios)
+    assert {e.id for e in repo.listar("consigfacil", dias=3650)} == {"e1", "e2"}

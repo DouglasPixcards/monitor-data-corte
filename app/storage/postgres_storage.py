@@ -167,17 +167,18 @@ class PostgresEventoRepository(EventoRepository):
                 for e in eventos
             ])
 
-    def listar(self, processadora: str, dias: int = 30) -> list[Evento]:
+    def listar(self, processadora: str, dias: int = 30, convenio_key: str | None = None) -> list[Evento]:
         # Cobre hoje e os (dias-1) dias anteriores — mesma janela do file storage.
         cutoff = str(date.today() - timedelta(days=dias - 1))
         with session_scope() as s:
+            stmt = select(EventoRow).where(
+                EventoRow.processadora == processadora,
+                EventoRow.detectado_em >= cutoff,
+            )
+            if convenio_key is not None:
+                stmt = stmt.where(EventoRow.convenio_key == convenio_key)
             rows = s.execute(
-                select(EventoRow)
-                .where(
-                    EventoRow.processadora == processadora,
-                    EventoRow.detectado_em >= cutoff,
-                )
-                .order_by(EventoRow.detectado_em.desc())
+                stmt.order_by(EventoRow.detectado_em.desc())
             ).scalars().all()
             return [self._to_model(r) for r in rows]
 
