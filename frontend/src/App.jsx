@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { usePolling, statusCorte, fmtAtualizado, aplicarAgrupamento, fetchHistorico } from './lib.js'
+import { usePolling, statusCorte, fmtAtualizado, aplicarAgrupamento, fetchHistorico, cortesPorDia } from './lib.js'
+
+const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
 const REFRESH_MS = 60000
 
@@ -118,11 +120,71 @@ function HistoricoModal({ convenio, onFechar }) {
   )
 }
 
+function Calendario({ dados }) {
+  const [ref, setRef] = useState(() => {
+    const d = new Date()
+    return { ano: d.getFullYear(), mes: d.getMonth() }
+  })
+  const porDia = useMemo(() => cortesPorDia(dados, ref.ano, ref.mes), [dados, ref])
+
+  const primeiroDiaSemana = new Date(ref.ano, ref.mes, 1).getDay()
+  const diasNoMes = new Date(ref.ano, ref.mes + 1, 0).getDate()
+  const hoje = new Date()
+  const ehMesAtual = hoje.getFullYear() === ref.ano && hoje.getMonth() === ref.mes
+  const rotuloMes = new Date(ref.ano, ref.mes, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+
+  const mudarMes = (delta) => setRef((r) => {
+    const d = new Date(r.ano, r.mes + delta, 1)
+    return { ano: d.getFullYear(), mes: d.getMonth() }
+  })
+
+  const celulas = []
+  for (let i = 0; i < primeiroDiaSemana; i++) celulas.push(null)
+  for (let dia = 1; dia <= diasNoMes; dia++) celulas.push(dia)
+
+  return (
+    <div className="calendario">
+      <div className="cal-nav">
+        <button onClick={() => mudarMes(-1)} aria-label="Mês anterior">‹</button>
+        <b className="cal-mes">{rotuloMes}</b>
+        <button onClick={() => mudarMes(1)} aria-label="Próximo mês">›</button>
+      </div>
+      <div className="cal-grade">
+        {SEMANA.map((s) => <div key={s} className="cal-dow">{s}</div>)}
+        {celulas.map((dia, i) => {
+          if (dia === null) return <div key={`b${i}`} className="cal-cel vazia" />
+          const cortes = porDia.get(dia) || []
+          const ehHoje = ehMesAtual && hoje.getDate() === dia
+          return (
+            <div key={dia} className={`cal-cel ${cortes.length ? 'tem-corte' : ''} ${ehHoje ? 'hoje' : ''}`}>
+              <span className="cal-dia">{dia}</span>
+              {cortes.length > 0 && (
+                <div className="cal-cortes">
+                  <b className="cal-count">{cortes.length}</b>
+                  <ul>
+                    {cortes.slice(0, 4).map((c, j) => {
+                      const rotulo = (c.convenio_nome || c.convenio_key) + (c.folha ? ` · ${c.folha}` : '')
+                      return <li key={j} title={rotulo}>{rotulo}</li>
+                    })}
+                    {cortes.length > 4 && <li className="mais">+{cortes.length - 4}</li>}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+
 export default function App() {
   const { dados, erro, loading, updatedAt } = usePolling(REFRESH_MS)
   const [busca, setBusca] = useState('')
   const [proc, setProc] = useState('')
   const [selecionado, setSelecionado] = useState(null)
+  const [vista, setVista] = useState('board')
 
   // Consolida SOMENTE Teresina numa linha; os demais ficam folha a folha.
   const base = useMemo(() => aplicarAgrupamento(dados), [dados])
@@ -151,6 +213,15 @@ export default function App() {
     })
   }, [ordenados, busca, proc])
 
+  // Calendário usa os dados SEM agrupamento (cada folha/órgão no seu dia), com o mesmo filtro.
+  const dadosCalendario = useMemo(() => {
+    const b = busca.trim().toLowerCase()
+    return dados.filter((d) => {
+      const txt = `${d.convenio_nome || d.convenio_key || ''} ${d.folha || ''}`.toLowerCase()
+      return (!b || txt.includes(b)) && (!proc || d.processadora === proc)
+    })
+  }, [dados, busca, proc])
+
   return (
     <div className="app">
       <header className="topo">
@@ -174,11 +245,17 @@ export default function App() {
         exibidos={linhas.length}
       />
 
+      <div className="vista-toggle">
+        <button className={vista === 'board' ? 'ativo' : ''} onClick={() => setVista('board')}>Board</button>
+        <button className={vista === 'calendario' ? 'ativo' : ''} onClick={() => setVista('calendario')}>Calendário</button>
+      </div>
+
       {loading && <div className="estado">Carregando dados...</div>}
       {erro && !loading && (
         <div className="estado erro">Falha ao carregar ({erro}). Nova tentativa automática em instantes...</div>
       )}
-      {!loading && !erro && <Board linhas={linhas} onAbrir={setSelecionado} />}
+      {!loading && !erro && vista === 'board' && <Board linhas={linhas} onAbrir={setSelecionado} />}
+      {!loading && !erro && vista === 'calendario' && <Calendario dados={dadosCalendario} />}
 
       {selecionado && <HistoricoModal convenio={selecionado} onFechar={() => setSelecionado(null)} />}
 

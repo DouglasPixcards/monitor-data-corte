@@ -133,3 +133,54 @@ body {
 .tl-mud { font-variant-numeric: tabular-nums; }
 .tl-mud b { color: var(--amber); letter-spacing: 1px; }
 .tl-mud .folha { color: var(--muted); font-style: normal; font-size: 12.5px; }
+
+/* Toggle de vista (board / calendário) */
+.vista-toggle { display: flex; gap: 6px; margin: 0 0 14px; }
+.vista-toggle button {
+  background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+  padding: 7px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
+}
+.vista-toggle button.ativo { color: var(--ink); border-color: #2c63c7; background: #0f1c33; }
+
+/* Calendário de cortes */
+.calendario { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.cal-nav {
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+  padding: 12px; background: #0b1322; border-bottom: 1px solid var(--line);
+}
+.cal-nav button {
+  background: none; border: 1px solid var(--line); color: var(--ink);
+  width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 16px;
+}
+.cal-nav button:hover { border-color: #2c63c7; }
+.cal-mes { text-transform: capitalize; min-width: 180px; text-align: center; }
+.cal-grade { display: grid; grid-template-columns: repeat(7, 1fr); }
+.cal-dow {
+  padding: 8px; text-align: center; color: var(--muted); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 1px; background: #0b1322;
+}
+.cal-cel {
+  min-height: 92px; border-top: 1px solid var(--line-soft); border-left: 1px solid var(--line-soft);
+  padding: 6px; font-size: 12px;
+}
+.cal-cel.vazia { background: var(--row2); }
+.cal-cel.tem-corte { background: rgba(52, 211, 153, .06); }
+.cal-cel.hoje { box-shadow: inset 0 0 0 2px var(--amber); }
+.cal-dia { color: var(--muted); font-weight: 700; }
+.cal-cel.hoje .cal-dia { color: var(--amber); }
+.cal-cortes { margin-top: 4px; }
+.cal-count {
+  display: inline-block; background: rgba(52, 211, 153, .15); color: var(--green);
+  font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-bottom: 3px;
+}
+.cal-cortes ul { list-style: none; }
+.cal-cortes li {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--ink); font-size: 11px; line-height: 1.5;
+}
+.cal-cortes li.mais { color: var(--muted); }
+
+@media (max-width: 760px) {
+  .cal-cel { min-height: 64px; }
+  .cal-cortes li { display: none; }
+}

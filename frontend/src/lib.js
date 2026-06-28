@@ -22,6 +22,21 @@ export function parseBR(s) {
   return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null
 }
 
+// Agrupa os cortes por DIA do mês para (ano, mes). `mes` é o índice 0–11 (Date.getMonth()).
+// Linhas sem data precisa (MM/YYYY, vazio, etc.) ficam de fora do calendário.
+export function cortesPorDia(dados, ano, mes) {
+  const porDia = new Map()
+  for (const d of dados) {
+    const data = parseBR(d.data_corte)
+    if (!data || data.getFullYear() !== ano || data.getMonth() !== mes) continue
+    const dia = data.getDate()
+    const arr = porDia.get(dia) || []
+    arr.push(d)
+    porDia.set(dia, arr)
+  }
+  return porDia
+}
+
 // Dias entre hoje e a data de corte (negativo = já passou).
 export function diasAte(s) {
   const d = parseBR(s)
