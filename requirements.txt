@@ -1,6 +1,7 @@
 playwright==1.59.0
 python-dotenv
-fastapi
+fastapi==0.136.1
+starlette==1.0.0
 uvicorn[standard]
 apscheduler
 requests
@@ -12,3 +13,4 @@ psycopg[binary]>=3.1
 
 # Testes
 pytest
+httpx==0.28.1            # exigido pelo TestClient do FastAPI (starlette.testclient) no CI
