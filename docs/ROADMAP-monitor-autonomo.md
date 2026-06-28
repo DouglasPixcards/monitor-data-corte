@@ -1,10 +1,8 @@
 # Roadmap — Monitor de Cortes autônomo, independente e principal em produção
 
 > Tasks marcáveis (`- [ ]`). Ordem por dependência, não por valor isolado.
-> Estado base: 30/85 convênios, storage JSON, agendado por Task Scheduler do Windows
-> numa máquina pessoal, e-mail diário, FastAPI. Já feito nesta fase: ConsigNet
-> (reCAPTCHA), ConsigLog (validate_access + popup), retry opt-in + classificação de
-> rede, janela do ConsigUp (não-commitado).
+> Estado base (origem): 30/85 convênios, storage JSON, agendado por Task Scheduler do
+> Windows numa máquina pessoal, e-mail diário, FastAPI.
 
 ## North star
 Um serviço que sozinho coleta as datas de corte todo dia, em infra própria, se
@@ -13,112 +11,113 @@ da verdade da operação — sem ninguém rodar nada local.
 
 ---
 
-## Decisões-chave (resolver cedo — moldam tudo)
+## Estado atual (2026-06-28)
 
-- [ ] **D1 — Playwright em 1 CPU / 1.6GB RAM (maior risco técnico).** O servidor é
-  pequeno e já roda o `bolao`. Headless Chromium para vários portais é pesado.
-  **Tarefa de investigação (Fase 2):** medir o pico de memória de UMA coleta;
-  confirmar coleta **estritamente sequencial** (1 scraper por vez); flags de baixa
-  memória (`--single-process`, `--disable-dev-shm-usage`, headless shell); confiar no
-  swap (5.3GB) com cautela; decidir se o scraping cabe nesse box ou precisa de worker
-  separado / janela noturna fora do horário do bolao.
-- [ ] **D2 — Empacotamento: Docker vs systemd+venv.** Padrão da casa = **systemd+venv**
-  (o bolao). Você mencionou Docker. Trade-off: Docker encapsula as ~30 libs de sistema
-  do Playwright (limpo), mas custa RAM/disco no box pequeno; systemd+venv casa com a ops
-  e é mais leve, mas exige instalar as deps do Chromium no host. **Recomendo systemd+venv**
-  (alinha com o bolao e economiza RAM); Docker só se a isolação das deps virar dor.
-- [ ] **D3 — Storage: SQLite (padrão da casa, 1 worker) vs Postgres.** O monitor escreve
-  durante coletas longas e o painel lê em paralelo. Avaliar se SQLite+1worker basta
-  (como o bolao) ou se a concorrência coleta×painel pede Postgres. **Decidir antes da
-  Fase 4/5.** (Já existe `app/storage/postgres_storage.py`.)
+**Todo o trabalho de CÓDIGO local (Trilhas A + dado + produto + observabilidade) está
+feito e na `main` — 195 testes verdes, CI rodando a suíte + Postgres a cada push.** O que
+resta está **bloqueado em terceiros** (VM dedicada, subdomínio via Higor, rotação do muana)
+ou é cobertura/refino incremental.
+
+**✅ Concluído:**
+- **Trilha A:** retry por-convênio · erro tipado (`erro_categoria`) · detecção credencial/portal.
+- **Fase 4 (dado) — completa:** validação de `data_corte` · flag de confiança (origem
+  estimado/oficial **+** estável/instável) · histórico por convênio · reconciliação (salto).
+- **Fase 5 (produto) — essencialmente completa:** painel React (board) · calendário · webhooks
+  de mudança · auth (HTTP Basic).
+- **Observabilidade:** métricas (taxa por processadora + falhas por convênio) · **dead-man's
+  switch** (código) · CI com Postgres.
+- **Backend:** **D3 = Postgres adotado** (endurecido + script de migração JSON→PG + CI).
+- **Segurança:** histórico limpo + tags · `.gitignore` blindado (`secrets/`, `.env.*`).
+
+**🔴 Bloqueado em terceiros / suas pendências:**
+- **VM dedicada** (contratar) → destrava todo o deploy (Fase 1b + runtime/cron/logs da Fase 2).
+- **Rotacionar a senha do muana** antes do go-live (inegociável).
+- **Subdomínio `cortes.pixcard.io`** (pedir ao Higor).
+
+**🟢 Ainda dá pra fazer local (incremental):** alerting com severidade + Slack · lint (ruff) no
+CI · runbook `OPERACAO_V1` · framework de coletor padronizado · SafeConsig V2 · cobertura 30→85.
 
 ---
 
-## Fase 0 — Limpeza de histórico + tag (segurança, AGORA)
-> Rotação da senha do muana fica **deferida** (decisão sua); limpeza do histórico = agora.
-> ⚠️ A limpeza reduz exposição futura mas NÃO neutraliza o segredo já vazado — **regra
-> dura: rotacionar a senha do muana ANTES de ir pra produção** (fechado na Fase 1b).
+## Decisões-chave
 
-- [ ] Decidir e **commitar o trabalho não-commitado de hoje** (feature ConsigUp + spec +
-  plano + handoff) — para entrar na versão "consolidada".
-- [ ] **Backup espelho do repo** (`git clone --mirror`) antes de reescrever.
-- [ ] `git filter-repo` removendo o blob da credencial muana do `app/core/processadoras.json`
-  em todo o histórico (introduzido em `f118f85`/`4fbebbb`).
-- [ ] Auditar o histórico por **outros segredos** (não só o muana) — `/cso` / varredura.
-- [ ] **Force-push** em `main` e `feat/registro-falha-coleta`; re-clonar onde houver cópia.
-- [ ] **Criar git tag anotada** (ex.: `v1.0-consolidado`) na versão consolidada — o marco
-  que você quer lembrar.
-- [ ] Confirmar que `.gitignore` cobre `.env` e que nenhuma outra credencial está embutida
-  na config (hoje já é `credential_env_key`).
+- [x] **D1 — RESOLVIDO (2026-06-26):** servidor atual (1 CPU/1.6GB + bolão) **não suporta**
+  Playwright → runtime/deploy adiado para **VM dedicada**. Coleta confirmada **sequencial**
+  (`_exec_lock` no runner, 1 Chromium por vez). Sizing recomendado: 2 vCPU / 4GB / 25GB SSD.
+- [ ] **D2 — Empacotamento: Docker vs systemd+venv.** Decidir no deploy. `docker-compose.yml`
+  já pronto e validado no CI; systemd+venv é o padrão da casa (bolao) e mais leve. **Recomendo
+  systemd+venv**; Docker só se a isolação das deps do Chromium virar dor.
+- [x] **D3 — RESOLVIDO: Postgres.** Backend adotado e endurecido (paridade, fail-fast,
+  `alembic check` no CI) + script de migração JSON→PG idempotente. SQLite descartado.
 
-## Fase 2 — Autonomia & confiabilidade (+ runtime mínimo)
-> Aqui também sai da sua máquina para um runtime mínimo no servidor — porque autonomia só
-> se prova rodando sozinha.
+---
 
-- [ ] **D1** — investigação de memória do Playwright no box (acima). É pré-requisito do resto.
-- [ ] **Runtime mínimo no servidor:** `/opt/monitor-cortes`, venv, serviço systemd
-  (porta interna 8001, `--host 127.0.0.1`), conforme o template do servidor. Sem painel
-  polido ainda — só rodar a API + o job.
-- [ ] **Scheduler de produção:** migrar do Task Scheduler do Windows para **cron** no
-  servidor (padrão do bolao) chamando o runner diário; respeitar a janela do ConsigUp.
-- [ ] **"Quem vigia o vigia":** dead-man's switch externo — cada rodada pinga um serviço de
-  uptime (ex.: healthchecks.io); se a rodada faltar/atrasar, alerta **independente** do
-  próprio sistema.
-- [ ] **Retry por-convênio** (hoje é por-processadora — dívida V2): não re-coletar o que já
-  deu certo.
-- [ ] **Tipo de erro estruturado:** cada coletor devolve uma causa tipada; aposentar a
-  heurística por string do `erro_classifier`.
-- [ ] **Detecção proativa de portal quebrado / credencial expirada** → alerta acionável
-  (generalizar o aprendizado de ConsigNet/ConsigLog).
-- [ ] Logs operáveis (journalctl via systemd e/ou `cron.log`).
+## Fase 0 — Segurança (CONCLUÍDA, exceto rotação deferida)
+> ⚠️ A limpeza reduz exposição futura mas NÃO neutraliza o segredo já vazado — **regra dura:
+> rotacionar a senha do muana ANTES de ir pra produção** (Fase 1b).
 
-## Fase 4 — Qualidade do dado (fonte da verdade confiável)
-- [ ] Normalização/validação robusta de `data_corte`.
-- [ ] **Flag de confiança por convênio** (estável vs instável; **estimado vs oficial** —
-  SafeConsig hoje é estimativa de competência).
-- [ ] Histórico/auditoria de mudanças exposto e versionado (já há eventos).
-- [ ] Reconciliação periódica (detectar valores improváveis).
+- [x] Commitar o trabalho consolidado (ConsigUp + specs + planos).
+- [x] Backup espelho do repo antes de reescrever.
+- [x] `git filter-repo` removendo o blob da credencial muana do histórico.
+- [x] `.gitignore` blindado (`secrets/`, `.env.*`, mantém `.env.example`); `.env` nunca no histórico.
+- [x] Force-push em `main` e `feat/registro-falha-coleta`.
+- [x] Git tags anotadas na versão consolidada.
+- [ ] *(follow-up)* Varredura profunda por **outros** segredos no histórico (gitleaks/`/cso`).
 
-## Fase 5 — Produto & interface (o que a operação usa)
-- [ ] **Painel single-page live** — `dashboard_executivo.html` servido pela API: datas
-  atuais, status por convênio, falhas, histórico.
-- [ ] **Calendário de cortes** (`frontend-calendario`) integrado.
-- [ ] **API estável** para outros sistemas + **webhooks** de mudança de data.
-- [ ] **Auth/controle de acesso** no painel.
+## Fase 2 — Autonomia & confiabilidade (Trilha A feita; runtime bloqueado na VM)
+- [x] **D1** — investigação de memória / coleta sequencial confirmada.
+- [x] **Retry por-convênio** (`687945e`) — não re-coleta o que já deu certo.
+- [x] **Tipo de erro estruturado** (`b048e03`) — `erro_categoria` tipado + fallback heurístico.
+- [x] **Detecção proativa de portal quebrado / credencial expirada** (`cb07221`) — alerta acionável.
+- [x] **Dead-man's switch** (`56b9f54`) — ping de uptime ao fim da coleta (código). Falta só
+  **criar o check externo** (healthchecks.io) e setar `HEALTHCHECK_URL` na VM.
+- [ ] 🔴 **Runtime mínimo no servidor** (`/opt/monitor-cortes`, venv, systemd, `127.0.0.1:8001`) — VM.
+- [ ] 🔴 **Scheduler de produção:** cron chamando o runner diário (respeitando a janela do ConsigUp) — VM.
+- [ ] 🔴 Logs operáveis (journalctl/`cron.log`) — VM.
 
-## Fase 1b — Deploy polido (produção real)
-> O runtime mínimo já subiu na Fase 2; aqui é o acabamento de produção.
+## Fase 4 — Qualidade do dado (CONCLUÍDA)
+- [x] Normalização/validação robusta de `data_corte` (`8a8ab16`) — garbage vira `valor_invalido`.
+- [x] **Flag de confiança por convênio** — origem estimado/oficial/manual (`e346bd5`) +
+  estável/instável por frequência de mudança de dia (`fb99980`).
+- [x] Histórico/auditoria de mudanças exposto (`16fe3f4` + painel `a0e8f9e`).
+- [x] Reconciliação — salto grande de data sinalizado "conferir" (`5b3184b`).
 
-- [ ] Subdomínio **`cortes.pixcard.io`** → pedir ao **Higor** apontar para `45.32.222.236`.
-- [ ] Config Nginx (template do servidor), proxy para `127.0.0.1:8001`.
-- [ ] **Certbot SSL** (`certbot --nginx -d cortes.pixcard.io`) — Cloudflare **Full (strict)**.
-- [ ] `deploy/deploy.sh` (git pull → deps → build → restart), no padrão do bolao.
-- [ ] **Backup diário** dos dados (script no padrão do `bolao backup.sh`, 7 dias).
-- [ ] `.env` em `/opt/monitor-cortes/backend/.env`; **secrets gerados na VM**, nunca no git.
-- [ ] **🔒 Rotacionar a senha do muana** (fecha o item deferido da Fase 0) — antes do go-live.
-- [ ] Aplicar a decisão **D3** (SQLite vs Postgres) conforme a carga real.
+## Fase 5 — Produto & interface (essencialmente CONCLUÍDA)
+- [x] **Painel single-page live** — app React/Vite em `/painel` (board ao vivo de `/cortes/atuais`).
+- [x] **Calendário de cortes** (`7c3d762`) — vista mensal, aba no painel.
+- [x] **Webhooks** de mudança de data (`0ddda96`). *(API estável formal: OpenAPI auto do FastAPI;
+  versionamento/contrato formal = follow-up se outro sistema consumir.)*
+- [x] **Auth/controle de acesso** no painel (`78578f6`) — HTTP Basic opt-in, leitura + escrita.
 
-## Fase 3 — Cobertura (por último; enablers adiantados)
-- [ ] *(adiantar na consolidação)* **Framework de coletor padronizado** — auth + seletores
-  em config + base scraper — para adicionar portal custar pouco.
-- [ ] *(adiantar na consolidação)* **Migração de storage** se a Fase 4/5 exigir (D3).
-- [ ] Integrar **ZETRASOFT + CIP** (o 80/20 do que falta).
+## Fase 1b — Deploy polido (🔴 TODO BLOQUEADO na VM / Higor / muana)
+- [ ] Subdomínio **`cortes.pixcard.io`** → pedir ao **Higor**.
+- [ ] Nginx (proxy `127.0.0.1:8001`) + **Certbot SSL** (Cloudflare Full strict).
+- [ ] `deploy/deploy.sh` (git pull → deps → build → restart).
+- [ ] **Backup diário** dos dados (7 dias).
+- [ ] `.env` na VM; **secrets gerados na VM**, nunca no git.
+- [ ] **🔒 Rotacionar a senha do muana** — antes do go-live.
+- [x] Decisão **D3** (Postgres) — aplicada; rodar a migração na VM no cutover.
+
+## Fase 3 — Cobertura (incremental, local)
+- [ ] **Framework de coletor padronizado** — auth + seletores em config — pra adicionar portal custar pouco.
+- [x] **Migração de storage** (D3 / Postgres) — script pronto e validado.
+- [ ] Integrar **ZETRASOFT + CIP** (precisa de acesso/credencial aos portais).
 - [ ] Mapear/implementar os convênios restantes (**30 → ~85**).
-- [ ] **SafeConsig V2:** sair do adapter temporário → `ApiCollector` genérico; resolver
-  estimativa de competência vs data de corte oficial.
+- [ ] **SafeConsig V2:** adapter → `ApiCollector` genérico; competência vs data oficial.
 - [ ] **Integrar ao registro central de convênios** (hoje `processadoras.json` isolado).
 
 ## Contínuo — observabilidade & governança
-- [ ] Métricas (taxa de sucesso por convênio/processadora, tendências).
-- [ ] Alerting acionável (e-mail + talvez Slack/webhook, com severidade).
-- [ ] **CI:** rodar a suíte (110+ testes) + lint a cada PR.
-- [ ] Runbook atualizado (`OPERACAO_V1`) + doc "como adicionar um portal".
+- [x] **Métricas** (`f9c1816`) — taxa de sucesso por processadora (tendência) + falhas por convênio.
+- [x] Alerting por **e-mail** (digest com seções acionáveis). [ ] **Severidade + Slack/webhook** = follow-up.
+- [x] **CI:** suíte (195 testes) + Postgres + `alembic check` a cada push. [ ] **lint (ruff)** = follow-up.
+- [x] Runbook **`POSTGRES.md`**. [ ] Atualizar `OPERACAO_V1` + doc "como adicionar um portal".
 
 ---
 
-## Caminho crítico (resumo)
-**0 (limpeza + tag) → 2 (autonomia + runtime mínimo, gate em D1) → 4 (dado) → 5 (produto)
-→ 1b (deploy polido + rotação do muana) → 3 (cobertura).**
-Decisões D1/D2/D3 resolvidas no começo da Fase 2.
+## Caminho crítico (atualizado)
+Código local (**Trilha A → Fase 4 → Fase 5 → observabilidade**) **✅ feito**.
+Resta: **contratar a VM → Fase 2 runtime + Fase 1b deploy (com rotação do muana) → Fase 3
+cobertura.** Itens locais soltos (alerting/severidade, lint, framework de coletor, runbook)
+podem andar a qualquer momento, sem dependência.
 
 > Regra de produção: **rotacionar o muana antes do go-live** (Fase 1b) — inegociável.
