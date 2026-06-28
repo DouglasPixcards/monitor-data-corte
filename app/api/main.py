@@ -31,6 +31,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.enums import EventoTipo
 from app.core.loader import load_processadoras_config
 from app.core.models import DadoCorte, Execucao
 from app.core.settings import settings
@@ -256,6 +257,7 @@ def _montar_dados_convenios() -> list[dict]:
                 "mes_atual": None,
                 "data_corte": normalizar_data_corte(default, None, datetime.now(timezone.utc).isoformat()) if default else None,
                 "coletado_em": None,
+                "origem": None,
             })
         else:
             for d in dados:
@@ -267,6 +269,7 @@ def _montar_dados_convenios() -> list[dict]:
                     "mes_atual": d.mes_atual,
                     "data_corte": normalizar_data_corte(d.data_corte, d.mes_atual, d.coletado_em),
                     "coletado_em": d.coletado_em,
+                    "origem": d.origem,
                 })
 
     return resultado
@@ -331,6 +334,7 @@ def atualizar_data_corte(key: str, body: dict) -> dict:
         coletado_em=agora,
         convenio_nome=nome,
         data_corte=data_corte,
+        origem="manual",
     )
 
     execucao_repo, dados_repo, _eventos = build_repositories()
@@ -351,6 +355,33 @@ def listar_eventos(
     _exec, _dados, repo = build_repositories()
     eventos = repo.listar(processadora_key, dias=dias)
     return [asdict(e) for e in eventos]
+
+
+@app.get("/convenios/{key}/historico")
+def historico_convenio(
+    key: str,
+    dias: int = Query(365, ge=1, le=3650, description="Janela de dias do histórico"),
+) -> list[dict]:
+    """Linha do tempo de data_corte de um convênio: as mudanças (DATA_CORTE_ALTERADA)
+    e o primeiro registro (REGISTRO_NOVO), mais recentes primeiro.
+    """
+    config = load_processadoras_config()
+    processadora_key, convenio_filter = _resolver_key(key, config)
+    _exec, _dados, repo = build_repositories()
+    eventos = repo.listar(processadora_key, dias=dias, convenio_key=convenio_filter)
+    tipos_data = {EventoTipo.DATA_CORTE_ALTERADA.value, EventoTipo.REGISTRO_NOVO.value}
+    return [
+        {
+            "detectado_em": e.detectado_em,
+            "tipo": e.tipo,
+            "data_corte_anterior": e.data_corte_anterior,
+            "data_corte_nova": e.data_corte_nova,
+            "folha": e.folha,
+            "mes_atual": e.mes_atual,
+        }
+        for e in eventos
+        if e.tipo in tipos_data
+    ]
 
 
 @app.get("/coletas/{key}/dados")

@@ -7,6 +7,15 @@ export async function fetchCortes() {
   return res.json()
 }
 
+// Linha do tempo de data_corte de um convênio (mudanças + primeiro registro).
+export async function fetchHistorico(convenioKey) {
+  const res = await fetch(`/convenios/${encodeURIComponent(convenioKey)}/historico`, {
+    headers: { Accept: 'application/json' },
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
 // "DD/MM/YYYY" -> Date (ou null se não for esse formato).
 export function parseBR(s) {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((s || '').trim())

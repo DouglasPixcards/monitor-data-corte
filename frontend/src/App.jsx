@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { usePolling, statusCorte, fmtAtualizado, aplicarAgrupamento } from './lib.js'
+import { usePolling, statusCorte, fmtAtualizado, aplicarAgrupamento, fetchHistorico } from './lib.js'
 
 const REFRESH_MS = 60000
 
@@ -34,13 +34,14 @@ function Controls({ busca, setBusca, proc, setProc, processadoras, total, exibid
   )
 }
 
-function BoardRow({ r }) {
+function BoardRow({ r, onAbrir }) {
   const st = statusCorte(r.data_corte)
   return (
-    <div className={`board-row ${st.cls}`}>
+    <div className={`board-row ${st.cls} clicavel`} onClick={() => onAbrir(r)} title="Ver histórico de datas">
       <span className="conv">
         <b className="nome">{r.convenio_nome || r.convenio_key}</b>
         {r.folha && <em className="folha">{r.folha}</em>}
+        {r.origem === 'api_estimativa' && <em className="tag estimativa">estimativa</em>}
       </span>
       <span className="proc">{r.processadora}</span>
       <span className="comp">{r.mes_atual || '—'}</span>
@@ -53,7 +54,7 @@ function BoardRow({ r }) {
   )
 }
 
-function Board({ linhas }) {
+function Board({ linhas, onAbrir }) {
   if (!linhas.length) return <div className="vazio">Nenhum convênio encontrado.</div>
   return (
     <div className="board">
@@ -65,8 +66,51 @@ function Board({ linhas }) {
         <span>Atualizado</span>
       </div>
       {linhas.map((r, i) => (
-        <BoardRow key={`${r.convenio_key || ''}-${r.folha || ''}-${i}`} r={r} />
+        <BoardRow key={`${r.convenio_key || ''}-${r.folha || ''}-${i}`} r={r} onAbrir={onAbrir} />
       ))}
+    </div>
+  )
+}
+
+
+function HistoricoModal({ convenio, onFechar }) {
+  const [eventos, setEventos] = useState(null)
+  const [erro, setErro] = useState(null)
+
+  useEffect(() => {
+    let vivo = true
+    fetchHistorico(convenio.convenio_key)
+      .then((evs) => { if (vivo) setEventos(evs) })
+      .catch((e) => { if (vivo) setErro(e.message || 'falha') })
+    return () => { vivo = false }
+  }, [convenio.convenio_key])
+
+  return (
+    <div className="modal-overlay" onClick={onFechar}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <header className="modal-head">
+          <b>Histórico de datas — {convenio.convenio_nome || convenio.convenio_key}</b>
+          <button className="fechar" onClick={onFechar} aria-label="Fechar">×</button>
+        </header>
+        {erro && <div className="estado erro">Falha ao carregar histórico ({erro}).</div>}
+        {!eventos && !erro && <div className="estado">Carregando histórico...</div>}
+        {eventos && eventos.length === 0 && <div className="vazio">Sem mudanças registradas para este convênio.</div>}
+        {eventos && eventos.length > 0 && (
+          <ul className="timeline">
+            {eventos.map((e, i) => (
+              <li key={i} className="tl-item">
+                <span className="tl-data">{fmtAtualizado(e.detectado_em)}</span>
+                <span className="tl-mud">
+                  {e.tipo === 'data_corte_alterada'
+                    ? <>{e.data_corte_anterior || '—'} → <b>{e.data_corte_nova || '—'}</b></>
+                    : <>primeiro registro: <b>{e.data_corte_nova || '—'}</b></>}
+                  {e.folha && <em className="folha"> · {e.folha}</em>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
@@ -75,6 +119,7 @@ export default function App() {
   const { dados, erro, loading, updatedAt } = usePolling(REFRESH_MS)
   const [busca, setBusca] = useState('')
   const [proc, setProc] = useState('')
+  const [selecionado, setSelecionado] = useState(null)
 
   // Consolida SOMENTE Teresina numa linha; os demais ficam folha a folha.
   const base = useMemo(() => aplicarAgrupamento(dados), [dados])
@@ -130,7 +175,9 @@ export default function App() {
       {erro && !loading && (
         <div className="estado erro">Falha ao carregar ({erro}). Nova tentativa automática em instantes...</div>
       )}
-      {!loading && !erro && <Board linhas={linhas} />}
+      {!loading && !erro && <Board linhas={linhas} onAbrir={setSelecionado} />}
+
+      {selecionado && <HistoricoModal convenio={selecionado} onFechar={() => setSelecionado(null)} />}
 
       <footer className="rodape">
         Atualização automática a cada {REFRESH_MS / 1000}s · Monitor de Datas de Corte
