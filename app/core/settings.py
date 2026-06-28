@@ -34,6 +34,13 @@ class Settings:
         if e.strip()
     ]
 
+    # Webhooks de mudança de data de corte (URLs separadas por vírgula). Vazio = desabilitado.
+    WEBHOOK_URLS: list[str] = [
+        u.strip()
+        for u in os.getenv("WEBHOOK_URLS", "").split(",")
+        if u.strip()
+    ]
+
     # Agendamento — formato "HH:MM". Vazio = desabilitado.
     COLETA_HORARIO: str = os.getenv("COLETA_HORARIO", "")
 

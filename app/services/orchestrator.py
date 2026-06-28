@@ -202,6 +202,10 @@ class ColetaOrchestrator:
         )
         self._evento_repo.salvar_lote(eventos)
 
+        # 6. Webhooks de mudança de data (best-effort; nunca derruba a coleta).
+        from app.services.notification.webhook import disparar_mudancas
+        disparar_mudancas(eventos)
+
         return ResultadoColeta(processadora=processadora, execucao=execucao,
                                eventos=eventos, resultado_lote=resultado_lote)
 
