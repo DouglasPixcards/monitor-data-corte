@@ -256,6 +256,8 @@ def executar_coleta_lote(processadora_key: str, convenio_filter: str | None = No
                 "data_corte": normalizar_data_corte(
                     record.get("data_corte"), record.get("mes_atual"), coletado_em
                 ),
+                # Estimativa (API, ex.: SafeConsig) vs oficial (scraper de portal).
+                "origem": "api_estimativa" if processadora_config.get("integration_type") == "api" else "scraper",
             })
 
     return resumir_lote(processadora_key, resultados_convenios, records_consolidados)

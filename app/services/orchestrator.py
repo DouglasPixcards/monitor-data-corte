@@ -185,6 +185,7 @@ class ColetaOrchestrator:
                 mes_atual=r.get("mes_atual"),
                 data_corte=r.get("data_corte"),
                 coletado_em=now_iso(),
+                origem=r.get("origem"),
             )
             for r in resultado_lote.get("records", [])
         ]

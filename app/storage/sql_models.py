@@ -47,6 +47,7 @@ class DadoCorteRow(Base):
     folha: Mapped[str | None] = mapped_column(String, nullable=True)
     mes_atual: Mapped[str | None] = mapped_column(String, nullable=True)
     data_corte: Mapped[str | None] = mapped_column(String, nullable=True)
+    origem: Mapped[str | None] = mapped_column(String, nullable=True)  # scraper|api_estimativa|manual
     # Sem UNIQUE composto: um convênio tem MÚLTIPLAS folhas/órgãos por execução
     # (ex.: "Cuiabá Prev" + "Prefeitura de Cuiabá" sob convenio_key=cuiaba), e o
     # corpus real nem (execucao_id, convenio_key, folha) é único — só o id (PK).

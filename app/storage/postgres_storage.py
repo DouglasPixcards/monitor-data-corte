@@ -116,6 +116,7 @@ class PostgresDadosCorteRepository(DadosCorteRepository):
                     folha=d.folha,
                     mes_atual=d.mes_atual,
                     data_corte=d.data_corte,
+                    origem=d.origem,
                 )
                 for d in dados
             ])
@@ -140,6 +141,7 @@ class PostgresDadosCorteRepository(DadosCorteRepository):
             folha=row.folha,
             mes_atual=row.mes_atual,
             data_corte=row.data_corte,
+            origem=row.origem,
         )
 
 

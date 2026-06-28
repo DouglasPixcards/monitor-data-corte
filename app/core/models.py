@@ -27,6 +27,7 @@ class DadoCorte:
     folha: str | None = field(default=None)
     mes_atual: str | None = field(default=None)
     data_corte: str | None = field(default=None)
+    origem: str | None = field(default=None)   # "scraper" | "api_estimativa" | "manual"
 
 
 @dataclass

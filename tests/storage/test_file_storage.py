@@ -99,6 +99,14 @@ def test_dados_corte_salvar_lote_vazio_nao_falha(base):
     repo.salvar_lote([])  # não deve levantar exceção
 
 
+def test_dados_corte_round_trip_origem(base):
+    repo = FileDadosCorteRepository(base)
+    repo.salvar_lote([DadoCorte(id="d1", execucao_id="e1", convenio_key="c1",
+                                coletado_em="2026-06-28T08:00:00", origem="api_estimativa")])
+    [d] = repo.buscar_por_execucao("e1")
+    assert d.origem == "api_estimativa"
+
+
 # --- EventoRepository ---
 
 def test_evento_salvar_lote(base):

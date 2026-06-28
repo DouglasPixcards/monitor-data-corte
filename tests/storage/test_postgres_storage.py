@@ -159,6 +159,14 @@ def test_dados_corte_salvar_lote_vazio_nao_falha(pg_repos):
     repo.salvar_lote([])
 
 
+def test_dados_corte_round_trip_origem(pg_repos):
+    _, repo, _ = pg_repos
+    repo.salvar_lote([DadoCorte(id="d1", execucao_id="e1", convenio_key="c1",
+                                coletado_em="2026-06-28T08:00:00", origem="scraper")])
+    [d] = repo.buscar_por_execucao("e1")
+    assert d.origem == "scraper"
+
+
 def test_buscar_por_execucao_ordem_deterministica(pg_repos):
     # Sem ORDER BY a ordem das linhas é arbitrária no Postgres; garantimos
     # determinismo por convenio_key (evita diffs instáveis em /cortes/atuais).
@@ -259,7 +267,7 @@ def test_evento_listar_filtra_por_convenio(pg_repos):
 def test_alembic_head_e_a_ultima_revisao():
     # Roda mesmo sem Postgres (não usa a fixture) — guarda de drift da HEAD.
     from app.storage.db import _alembic_head
-    assert _alembic_head() == "0002_evento_falha_campos"
+    assert _alembic_head() == "0003_dados_corte_origem"
 
 
 def test_assert_ready_falha_se_schema_nao_migrado(pg_repos):
