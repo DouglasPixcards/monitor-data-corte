@@ -268,3 +268,19 @@ def test_data_corte_none_nao_e_flaggada():
     atual = [_dado("x", "F", "02/2026", None)]
     eventos = ComparadorService().comparar("consigfacil", "exec2", [], atual)
     assert not any(e.categoria == "valor_invalido" for e in eventos)
+
+
+def test_salto_grande_emite_sinal_alem_da_alteracao():
+    anterior = [_dado("belterra", "FOLHA 02", "02/2026", "10/05/2026")]
+    atual = [_dado("belterra", "FOLHA 02", "02/2026", "28/06/2026")]  # +49 dias
+    eventos = ComparadorService().comparar("consigfacil", "exec2", anterior, atual)
+    assert any(e.tipo == EventoTipo.DATA_CORTE_ALTERADA for e in eventos)
+    assert any(e.categoria == "salto_suspeito" for e in eventos)
+
+
+def test_salto_pequeno_so_alteracao():
+    anterior = [_dado("belterra", "FOLHA 02", "02/2026", "10/05/2026")]
+    atual = [_dado("belterra", "FOLHA 02", "02/2026", "08/05/2026")]  # 2 dias
+    eventos = ComparadorService().comparar("consigfacil", "exec2", anterior, atual)
+    assert any(e.tipo == EventoTipo.DATA_CORTE_ALTERADA for e in eventos)
+    assert not any(e.categoria == "salto_suspeito" for e in eventos)

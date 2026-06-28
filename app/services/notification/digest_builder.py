@@ -34,8 +34,9 @@ def _categorizar(eventos: list[Evento]) -> dict:
     fora_janela = [e for e in falhas if e.categoria == "fora_janela"]
     credencial_expirada = [e for e in falhas if e.categoria == "credencial_expirada"]
     valor_invalido = [e for e in falhas if e.categoria == "valor_invalido"]
+    salto_suspeito = [e for e in falhas if e.categoria == "salto_suspeito"]
     reais = [e for e in falhas
-             if e.categoria not in ("sem_dado", "nao_executou", "fora_janela", "credencial_expirada", "valor_invalido")
+             if e.categoria not in ("sem_dado", "nao_executou", "fora_janela", "credencial_expirada", "valor_invalido", "salto_suspeito")
              and e.subtipo != "conhecida"]
     falhas_novas = [e for e in reais if e.subtipo == "falha_nova"]
     persistentes = [e for e in reais if e.subtipo == "persistente"]
@@ -47,6 +48,7 @@ def _categorizar(eventos: list[Evento]) -> dict:
         "fora_janela": fora_janela,
         "credencial_expirada": credencial_expirada,
         "valor_invalido": valor_invalido,
+        "salto_suspeito": salto_suspeito,
     }
 
 
@@ -60,7 +62,7 @@ def _resumo(cat: dict, verificados: int, coletados: int, prefixo: str = "") -> s
 
 
 def _precisa_acao(cat: dict) -> bool:
-    return bool(cat["mudancas"] or cat["falhas_novas"] or cat["gaps"] or cat["sem_dado"] or cat["credencial_expirada"] or cat["valor_invalido"])
+    return bool(cat["mudancas"] or cat["falhas_novas"] or cat["gaps"] or cat["sem_dado"] or cat["credencial_expirada"] or cat["valor_invalido"] or cat["salto_suspeito"])
 
 
 # ── Seções (recebem `rotulo`: callable Evento -> texto do convênio) ────────────
@@ -123,6 +125,8 @@ def _montar_corpo(titulo, resumo, disclaimer_html, cat, rotulo, extra_topo="") -
         partes.append(_secao_falhas("🔑 Credencial expirada — renovar a senha no portal", cat["credencial_expirada"], rotulo))
     if cat["valor_invalido"]:
         partes.append(_secao_falhas("⚠️ Valor de data inválido — conferir a coleta", cat["valor_invalido"], rotulo))
+    if cat["salto_suspeito"]:
+        partes.append(_secao_falhas("📈 Salto grande na data de corte — conferir", cat["salto_suspeito"], rotulo))
     if cat["falhas_novas"]:
         partes.append(_secao_falhas("🔴 Falhas novas", cat["falhas_novas"], rotulo))
     if cat["sem_dado"]:

@@ -115,3 +115,20 @@ def test_valor_invalido_destaque_acionavel():
     assunto, corpo = DigestBuilder.build("consigfacil", [_ev_valor_invalido()], lote)
     assert "Valor de data inválido" in corpo
     assert assunto.startswith("[Ação]")
+
+
+def _ev_salto_suspeito():
+    return Evento(
+        id=str(uuid.uuid4()), tipo=EventoTipo.ERRO_COLETA, processadora="consigfacil",
+        convenio_key="belterra", execucao_id="e1", detectado_em="2026-06-28T10:00:00",
+        categoria="salto_suspeito", subtipo=None,
+        detalhe="salto grande de data_corte: '10/05/2026' → '28/06/2026'",
+    )
+
+
+def test_salto_suspeito_destaque_acionavel():
+    lote = {"processadora": "consigfacil", "total_convenios": 1, "success_count": 1,
+            "convenios": [{"convenio_key": "belterra", "convenio_nome": "Belterra"}]}
+    assunto, corpo = DigestBuilder.build("consigfacil", [_ev_salto_suspeito()], lote)
+    assert "Salto grande" in corpo
+    assert assunto.startswith("[Ação]")

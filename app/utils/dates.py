@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 _MESES_EN: dict[str, int] = {
     "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
@@ -139,3 +139,34 @@ def validar_data_corte(valor: str | None, coletado_em: str | None = None) -> boo
             return False
 
     return False
+
+
+# Salto plausível (em dias) de uma data de corte entre coletas, para a MESMA
+# competência. Acima disso, a mudança é improvável → sinal "conferir".
+_MAX_SALTO_DIAS = 45
+
+
+def _data_ddmmyyyy(valor: str | None) -> date | None:
+    """Converte 'DD/MM/YYYY' real numa date; None para qualquer outra forma."""
+    if not valor:
+        return None
+    m = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", valor.strip())
+    if not m:
+        return None
+    try:
+        return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+    except ValueError:
+        return None
+
+
+def salto_data_corte_suspeito(anterior: str | None, atual: str | None) -> bool:
+    """True se o salto em dias entre duas data_corte DD/MM/YYYY excede _MAX_SALTO_DIAS.
+
+    Só avalia datas DD/MM/YYYY reais; MM/YYYY (competência), None ou garbage → False
+    (não avalia — reconciliação é só para datas precisas).
+    """
+    da = _data_ddmmyyyy(anterior)
+    db = _data_ddmmyyyy(atual)
+    if da is None or db is None:
+        return False
+    return abs((db - da).days) > _MAX_SALTO_DIAS

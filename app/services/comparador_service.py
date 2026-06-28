@@ -7,7 +7,7 @@ from app.core.enums import EventoTipo
 from app.core.models import DadoCorte, Evento
 from app.services.erro_classifier import classificar_erro
 from app.services.storage_helpers import now_iso
-from app.utils.dates import validar_data_corte
+from app.utils.dates import salto_data_corte_suspeito, validar_data_corte
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +68,19 @@ class ComparadorService:
                     folha=atual.folha, mes_atual=atual.mes_atual, data_corte_nova=atual.data_corte,
                 ))
             elif mapa_anterior[chave].data_corte != atual.data_corte:
+                anterior_dc = mapa_anterior[chave].data_corte
                 eventos.append(self._ev(
                     EventoTipo.DATA_CORTE_ALTERADA, processadora, atual.convenio_key, execucao_id, agora,
                     folha=atual.folha, mes_atual=atual.mes_atual,
-                    data_corte_anterior=mapa_anterior[chave].data_corte, data_corte_nova=atual.data_corte,
+                    data_corte_anterior=anterior_dc, data_corte_nova=atual.data_corte,
                 ))
+                # Reconciliação: salto grande na data → sinal "conferir" (não bloqueia a mudança).
+                if salto_data_corte_suspeito(anterior_dc, atual.data_corte):
+                    eventos.append(self._ev_status(
+                        processadora, atual.convenio_key, execucao_id, agora,
+                        tipo=EventoTipo.ERRO_COLETA, categoria="salto_suspeito", subtipo=None,
+                        detalhe=f"salto grande de data_corte: {anterior_dc!r} → {atual.data_corte!r}",
+                    ))
 
         for chave, anterior in mapa_anterior.items():
             if chave not in mapa_atual:
