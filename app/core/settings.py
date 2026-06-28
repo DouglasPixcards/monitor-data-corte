@@ -44,5 +44,10 @@ class Settings:
     # Agendamento — formato "HH:MM". Vazio = desabilitado.
     COLETA_HORARIO: str = os.getenv("COLETA_HORARIO", "")
 
+    # Auth básica do painel/API (HTTP Basic). PANEL_PASSWORD vazio = auth DESABILITADA
+    # (aberto, comportamento atual); setar a senha no .env da VM liga a proteção.
+    PANEL_USER: str = os.getenv("PANEL_USER", "admin")
+    PANEL_PASSWORD: str = os.getenv("PANEL_PASSWORD", "")
+
 
 settings = Settings()

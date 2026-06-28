@@ -12,6 +12,7 @@ client = TestClient(app)
 def test_testar_smtp_sem_host_retorna_422():
     with patch("app.api.main.settings") as mock_settings:
         mock_settings.SMTP_HOST = ""
+        mock_settings.PANEL_PASSWORD = ""
         mock_settings.notification_DESTINATARIOS = ["analista@empresa.com"]
         resp = client.post("/notification/testar")
     assert resp.status_code == 422
@@ -21,6 +22,7 @@ def test_testar_smtp_sem_host_retorna_422():
 def test_testar_smtp_sem_destinatarios_retorna_422():
     with patch("app.api.main.settings") as mock_settings:
         mock_settings.SMTP_HOST = "smtp.empresa.com"
+        mock_settings.PANEL_PASSWORD = ""
         mock_settings.notification_DESTINATARIOS = []
         resp = client.post("/notification/testar")
     assert resp.status_code == 422
@@ -35,6 +37,7 @@ def test_testar_smtp_envia_e_retorna_ok():
         mock_settings.SMTP_USER = "user@empresa.com"
         mock_settings.SMTP_PASSWORD = "senha"
         mock_settings.SMTP_USE_TLS = True
+        mock_settings.PANEL_PASSWORD = ""
         mock_settings.notification_DESTINATARIOS = ["analista@empresa.com"]
         mock_notificador_cls.return_value.enviar.return_value = None
         resp = client.post("/notification/testar")
@@ -51,6 +54,7 @@ def test_testar_smtp_falha_de_conexao_retorna_500():
         mock_settings.SMTP_USER = "user@empresa.com"
         mock_settings.SMTP_PASSWORD = "senha"
         mock_settings.SMTP_USE_TLS = True
+        mock_settings.PANEL_PASSWORD = ""
         mock_settings.notification_DESTINATARIOS = ["analista@empresa.com"]
         mock_notificador_cls.return_value.enviar.side_effect = ConnectionRefusedError("recusado")
         resp = client.post("/notification/testar")

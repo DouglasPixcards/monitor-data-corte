@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import logging
 import logging.config
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -28,7 +30,7 @@ logging.config.dictConfig({
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.enums import EventoTipo
@@ -53,6 +55,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     if not settings.SMTP_HOST:
         logger.warning("SMTP_HOST não configurado — notificações por e-mail desabilitadas")
+    if settings.PANEL_PASSWORD:
+        logger.info("Auth do painel/API HABILITADA (HTTP Basic, usuário '%s')", settings.PANEL_USER)
+    else:
+        logger.warning("Auth do painel/API DESABILITADA (PANEL_PASSWORD não setada) — API/painel ABERTOS")
     scheduler = SchedulerService(
         horario=settings.COLETA_HORARIO,
         orchestrator_factory=build_orchestrator,
@@ -71,6 +77,34 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+# ── Auth básica (opt-in: ativa só quando PANEL_PASSWORD está setada) ───────────
+_AUTH_EXEMPT = {"/health"}  # uptime / dead-man's switch pinga sem credencial
+
+
+def _credenciais_ok(auth_header: str | None) -> bool:
+    if not auth_header or auth_header[:6].lower() != "basic ":
+        return False
+    try:
+        usuario, _, senha = base64.b64decode(auth_header[6:]).decode("utf-8").partition(":")
+    except Exception:  # noqa: BLE001 — header malformado = não autenticado
+        return False
+    # Compara em BYTES (compare_digest rejeita str não-ASCII → senha com acento daria
+    # 500/lockout) e os DOIS campos, em tempo constante (sem timing/early-exit por usuário).
+    u_ok = secrets.compare_digest(usuario.encode("utf-8"), settings.PANEL_USER.encode("utf-8"))
+    s_ok = secrets.compare_digest(senha.encode("utf-8"), settings.PANEL_PASSWORD.encode("utf-8"))
+    return u_ok and s_ok
+
+
+@app.middleware("http")
+async def _auth_basica(request, call_next):
+    if (settings.PANEL_PASSWORD
+            and request.method != "OPTIONS"
+            and request.url.path not in _AUTH_EXEMPT
+            and not _credenciais_ok(request.headers.get("Authorization"))):
+        return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Monitor de Cortes"'})
+    return await call_next(request)
 
 
 # ── Painel estático (mini front React/Vite) ───────────────────────────────────
