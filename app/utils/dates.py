@@ -92,3 +92,50 @@ def _mes_ano_pelo_dia(dia: int, coletado_em: str | None) -> tuple[int | None, in
     if ref.month == 12:
         return 1, ref.year + 1
     return ref.month + 1, ref.year
+
+
+def validar_data_corte(valor: str | None, coletado_em: str | None = None) -> bool:
+    """True se `valor` é uma data de corte PLAUSÍVEL (não garbage).
+
+    - ``DD/MM/YYYY``: data de calendário REAL (rejeita 31/02) e ano dentro de
+      ``[ano_coleta - 1 .. ano_coleta + 1]``.
+    - ``MM/YYYY``: competência/estimativa (ex.: SafeConsig), mês 1–12 e ano plausível.
+    - ``None``, vazio ou qualquer outra forma → ``False``.
+
+    O ano de referência vem de ``coletado_em`` (mesma extração de ``normalizar_data_corte``);
+    passe-o nos testes para um resultado determinístico.
+    """
+    if not valor:
+        return False
+    v = valor.strip()
+    # Ano de referência da coleta — SEM fallback para datetime.now() (mantém a função
+    # pura/determinística). Sem coletado_em parseável, a janela de ano é dispensada.
+    ano_ref: int | None = None
+    if coletado_em:
+        try:
+            ano_ref = datetime.fromisoformat(coletado_em.replace("Z", "+00:00")).year
+        except (ValueError, TypeError):
+            ano_ref = None
+
+    def _ano_ok(ano: int) -> bool:
+        return ano_ref is None or ano_ref - 1 <= ano <= ano_ref + 1
+
+    # Competência MM/YYYY (estimativa)
+    m = re.fullmatch(r"(\d{1,2})/(\d{4})", v)
+    if m:
+        mes, ano = int(m.group(1)), int(m.group(2))
+        return 1 <= mes <= 12 and _ano_ok(ano)
+
+    # Data DD/MM/YYYY de calendário real
+    m = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", v)
+    if m:
+        dia, mes, ano = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if not _ano_ok(ano):
+            return False
+        try:
+            datetime(ano, mes, dia)
+            return True
+        except ValueError:
+            return False
+
+    return False

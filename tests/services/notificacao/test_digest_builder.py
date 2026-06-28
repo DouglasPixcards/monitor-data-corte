@@ -98,3 +98,20 @@ def test_credencial_expirada_persistente_ainda_acionavel():
     assunto, corpo = DigestBuilder.build("consiglog", [ev], lote)
     assert "Credencial expirada" in corpo
     assert assunto.startswith("[Ação]")
+
+
+def _ev_valor_invalido():
+    return Evento(
+        id=str(uuid.uuid4()), tipo=EventoTipo.ERRO_COLETA, processadora="consigfacil",
+        convenio_key="belterra", execucao_id="e1", detectado_em="2026-06-27T10:00:00",
+        categoria="valor_invalido", subtipo=None,
+        detalhe="data_corte inválida coletada (folha='FOLHA 02'): 'ver tabela'",
+    )
+
+
+def test_valor_invalido_destaque_acionavel():
+    lote = {"processadora": "consigfacil", "total_convenios": 1, "success_count": 0,
+            "convenios": [{"convenio_key": "belterra", "convenio_nome": "Belterra"}]}
+    assunto, corpo = DigestBuilder.build("consigfacil", [_ev_valor_invalido()], lote)
+    assert "Valor de data inválido" in corpo
+    assert assunto.startswith("[Ação]")

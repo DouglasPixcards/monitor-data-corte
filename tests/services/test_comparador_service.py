@@ -227,3 +227,44 @@ def test_comparador_prefere_erro_categoria_tipada():
     erro = [e for e in eventos
             if e.tipo == EventoTipo.ERRO_COLETA and e.subtipo in ("falha_nova", "persistente")][0]
     assert erro.categoria == "portal_mudou"
+
+
+def test_data_corte_garbage_nao_dispara_alteracao():
+    # Anterior tinha data válida; hoje veio garbage → valor_invalido (não DATA_CORTE_ALTERADA).
+    anterior = [_dado("belterra", "FOLHA 02", "02/2026", "10/05/2026")]
+    atual = [_dado("belterra", "FOLHA 02", "02/2026", "ver tabela")]
+    eventos = ComparadorService().comparar("consigfacil", "exec2", anterior, atual)
+    assert not any(e.tipo == EventoTipo.DATA_CORTE_ALTERADA for e in eventos)
+    inval = [e for e in eventos if e.categoria == "valor_invalido"]
+    assert len(inval) == 1
+    assert inval[0].tipo == EventoTipo.ERRO_COLETA
+
+
+def test_registro_novo_garbage_vira_valor_invalido():
+    # Convênio novo hoje com data garbage → valor_invalido (não REGISTRO_NOVO).
+    atual = [_dado("nova", "F", "02/2026", "ver tabela")]
+    eventos = ComparadorService().comparar("consigfacil", "exec2", [], atual)
+    assert not any(e.tipo == EventoTipo.REGISTRO_NOVO for e in eventos)
+    assert any(e.categoria == "valor_invalido" for e in eventos)
+
+
+def test_data_corte_valida_diferente_ainda_dispara_alteracao():
+    # Não quebra o caminho normal: data válida diferente segue virando DATA_CORTE_ALTERADA.
+    anterior = [_dado("belterra", "FOLHA 02", "02/2026", "10/05/2026")]
+    atual = [_dado("belterra", "FOLHA 02", "02/2026", "08/05/2026")]
+    eventos = ComparadorService().comparar("consigfacil", "exec2", anterior, atual)
+    assert any(e.tipo == EventoTipo.DATA_CORTE_ALTERADA for e in eventos)
+
+
+def test_competencia_mm_yyyy_nao_e_flaggada():
+    # MM/YYYY (estimativa SafeConsig) é valor legítimo — não vira valor_invalido.
+    atual = [_dado("uruoca", None, "02/2026", "06/2026")]
+    eventos = ComparadorService().comparar("safeconsig", "exec2", [], atual)
+    assert not any(e.categoria == "valor_invalido" for e in eventos)
+
+
+def test_data_corte_none_nao_e_flaggada():
+    # data_corte=None é sem_dado em outra camada, não valor_invalido (gate ignora None).
+    atual = [_dado("x", "F", "02/2026", None)]
+    eventos = ComparadorService().comparar("consigfacil", "exec2", [], atual)
+    assert not any(e.categoria == "valor_invalido" for e in eventos)

@@ -7,6 +7,7 @@ from app.core.enums import EventoTipo
 from app.core.models import DadoCorte, Evento
 from app.services.erro_classifier import classificar_erro
 from app.services.storage_helpers import now_iso
+from app.utils.dates import validar_data_corte
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,15 @@ class ComparadorService:
 
         # --- Camada de DADOS ---
         for chave, atual in mapa_atual.items():
+            # Garbage no data_corte (scrape quebrado) NÃO vira mudança nem registro novo:
+            # emite sinal de qualidade acionável, evitando o falso DATA_CORTE_ALTERADA.
+            if atual.data_corte is not None and not validar_data_corte(atual.data_corte, atual.coletado_em):
+                eventos.append(self._ev_status(
+                    processadora, atual.convenio_key, execucao_id, agora,
+                    tipo=EventoTipo.ERRO_COLETA, categoria="valor_invalido", subtipo=None,
+                    detalhe=f"data_corte inválida coletada (folha={atual.folha!r}): {atual.data_corte!r}",
+                ))
+                continue
             if chave not in mapa_anterior:
                 eventos.append(self._ev(
                     EventoTipo.REGISTRO_NOVO, processadora, atual.convenio_key, execucao_id, agora,
