@@ -352,6 +352,13 @@ def main() -> int:
         RETRY_DELAY_MINUTES,
     )
 
+    # Fail-fast: com Postgres, garante DB acessível + schema na head ANTES de
+    # iniciar a coleta — senão a falha só apareceria na 1ª query, podendo
+    # derrubar silenciosamente a rodada agendada.
+    if settings.STORAGE_BACKEND.strip().lower() == "postgres":
+        from app.storage import db
+        db.assert_ready()
+
     orchestrator = build_orchestrator()
     intervalo_segundos = INTERVAL_MINUTES * 60
     resultados = {

@@ -159,6 +159,48 @@ def test_dados_corte_salvar_lote_vazio_nao_falha(pg_repos):
     repo.salvar_lote([])
 
 
+def test_buscar_por_execucao_ordem_deterministica(pg_repos):
+    # Sem ORDER BY a ordem das linhas é arbitrária no Postgres; garantimos
+    # determinismo por convenio_key (evita diffs instáveis em /cortes/atuais).
+    _, repo, _ = pg_repos
+    repo.salvar_lote([
+        DadoCorte(id="d3", execucao_id="e1", convenio_key="zeta", coletado_em="2026-04-29T08:00:00"),
+        DadoCorte(id="d1", execucao_id="e1", convenio_key="alfa", coletado_em="2026-04-29T08:00:00"),
+        DadoCorte(id="d2", execucao_id="e1", convenio_key="beta", coletado_em="2026-04-29T08:00:00"),
+    ])
+    res = repo.buscar_por_execucao("e1")
+    assert [d.convenio_key for d in res] == ["alfa", "beta", "zeta"]
+
+
+def test_dados_corte_aceita_multiplas_folhas_por_convenio(pg_repos):
+    # Um convênio pode ter VÁRIAS folhas/órgãos na mesma execução — NÃO há
+    # uniqueness composta; ambas as linhas devem ser preservadas.
+    _, repo, _ = pg_repos
+    repo.salvar_lote([
+        DadoCorte(id="d1", execucao_id="e1", convenio_key="cuiaba", folha="Cuiabá Prev",
+                  coletado_em="2026-04-29T08:00:00", data_corte="10/06/2026"),
+        DadoCorte(id="d2", execucao_id="e1", convenio_key="cuiaba", folha="Prefeitura de Cuiabá",
+                  coletado_em="2026-04-29T08:00:00", data_corte="10/06/2026"),
+    ])
+    res = repo.buscar_por_execucao("e1")
+    assert len(res) == 2
+    assert {d.folha for d in res} == {"Cuiabá Prev", "Prefeitura de Cuiabá"}
+
+
+def test_buscar_por_execucao_tiebreaker_por_id(pg_repos):
+    # Mesmo convenio_key (multi-folha): o desempate da ordenação é por id
+    # (trava o `, id` no ORDER BY — sem ele a ordem entre folhas seria arbitrária).
+    _, repo, _ = pg_repos
+    repo.salvar_lote([
+        DadoCorte(id="b", execucao_id="e1", convenio_key="cuiaba", folha="F2",
+                  coletado_em="2026-04-29T08:00:00"),
+        DadoCorte(id="a", execucao_id="e1", convenio_key="cuiaba", folha="F1",
+                  coletado_em="2026-04-29T08:00:00"),
+    ])
+    res = repo.buscar_por_execucao("e1")
+    assert [d.id for d in res] == ["a", "b"]  # por id, não ordem de inserção
+
+
 def test_dados_corte_fail_fast_em_execucao_duplicada(pg_repos):
     _, repo, _ = pg_repos
     dado = DadoCorte(
@@ -197,3 +239,51 @@ def test_evento_salvar_lote(pg_repos):
 def test_evento_salvar_lote_vazio_nao_falha(pg_repos):
     _, _, repo = pg_repos
     repo.salvar_lote([])
+
+
+# --- db.assert_ready (fail-fast no startup) ---
+
+def test_alembic_head_e_a_ultima_revisao():
+    # Roda mesmo sem Postgres (não usa a fixture) — guarda de drift da HEAD.
+    from app.storage.db import _alembic_head
+    assert _alembic_head() == "0002_evento_falha_campos"
+
+
+def test_assert_ready_falha_se_schema_nao_migrado(pg_repos):
+    # A fixture cria as tabelas via create_all, mas NÃO cria alembic_version →
+    # assert_ready deve falhar claro (schema não está na head das migrations).
+    from app.storage.db import assert_ready
+    with pytest.raises(RuntimeError, match="alembic upgrade head"):
+        assert_ready()
+
+
+def test_assert_ready_ok_quando_na_head(pg_repos):
+    from sqlalchemy import text
+
+    from app.storage import db as db_module
+    from app.storage.db import _alembic_head, assert_ready
+
+    eng = db_module.get_engine()
+    with eng.begin() as c:
+        c.execute(text("CREATE TABLE alembic_version (version_num varchar(64) NOT NULL)"))
+        c.execute(
+            text("INSERT INTO alembic_version (version_num) VALUES (:v)"),
+            {"v": _alembic_head()},
+        )
+    assert_ready()  # não levanta
+
+
+def test_assert_ready_falha_se_schema_atras_da_head(pg_repos):
+    # alembic_version existe mas numa revisão ANTIGA (atrás da head) → falha
+    # claro (o ponto-chave do assert_ready vs um ping de conexão simples).
+    from sqlalchemy import text
+
+    from app.storage import db as db_module
+    from app.storage.db import assert_ready
+
+    eng = db_module.get_engine()
+    with eng.begin() as c:
+        c.execute(text("CREATE TABLE alembic_version (version_num varchar(64) NOT NULL)"))
+        c.execute(text("INSERT INTO alembic_version (version_num) VALUES ('0001_inicial')"))
+    with pytest.raises(RuntimeError, match="desatualizado"):
+        assert_ready()

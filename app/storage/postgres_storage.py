@@ -123,7 +123,9 @@ class PostgresDadosCorteRepository(DadosCorteRepository):
     def buscar_por_execucao(self, execucao_id: str) -> list[DadoCorte]:
         with session_scope() as s:
             rows = s.execute(
-                select(DadoCorteRow).where(DadoCorteRow.execucao_id == execucao_id)
+                select(DadoCorteRow)
+                .where(DadoCorteRow.execucao_id == execucao_id)
+                .order_by(DadoCorteRow.convenio_key, DadoCorteRow.id)
             ).scalars().all()
             return [self._to_model(r) for r in rows]
 

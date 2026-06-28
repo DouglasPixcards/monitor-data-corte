@@ -22,6 +22,7 @@ class SchedulerService:
         self._scheduler = BackgroundScheduler()
 
     def iniciar(self) -> None:
+        self._verificar_db_pronto()
         if not self._horario:
             logger.info("COLETA_HORARIO não configurado — agendamento desabilitado")
             return
@@ -46,6 +47,16 @@ class SchedulerService:
             "Scheduler iniciado: coleta diária consolidada às %s (e-mail único)",
             self._horario,
         )
+
+    @staticmethod
+    def _verificar_db_pronto() -> None:
+        # Fail-fast no startup da API quando Postgres (espelha o runner diário):
+        # DB acessível + schema na head, em vez de falhar lazy na 1a query/coleta
+        # agendada. Roda no lifespan da API (que chama iniciar()).
+        from app.core.settings import settings
+        if settings.STORAGE_BACKEND.strip().lower() == "postgres":
+            from app.storage import db
+            db.assert_ready()
 
     def parar(self) -> None:
         if self._scheduler.running:
