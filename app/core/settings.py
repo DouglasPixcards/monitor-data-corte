@@ -49,5 +49,9 @@ class Settings:
     PANEL_USER: str = os.getenv("PANEL_USER", "admin")
     PANEL_PASSWORD: str = os.getenv("PANEL_PASSWORD", "")
 
+    # Dead-man's switch: URL de um serviço de uptime (ex.: healthchecks.io) pingada ao fim
+    # de cada coleta. Se a coleta não rodar, o ping falta e o serviço alerta. Vazio = off.
+    HEALTHCHECK_URL: str = os.getenv("HEALTHCHECK_URL", "")
+
 
 settings = Settings()

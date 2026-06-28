@@ -54,6 +54,7 @@ logger = logging.getLogger("run_daily_collection")
 from app.core.enums import CollectionStatus
 from app.core.loader import load_processadoras_config
 from app.core.settings import settings
+from app.services import healthcheck
 from app.services.orchestrator import ColetaOrchestrator
 from app.services.orchestrator_factory import build_orchestrator
 
@@ -452,9 +453,11 @@ def main() -> int:
             len(falhas_inesperadas),
             falhas_inesperadas,
         )
+        healthcheck.pingar(sucesso=False)   # dead-man's switch: rodou, mas com falha
         return 1
 
     logger.info("[Runner] Coleta diária concluída sem falhas inesperadas.")
+    healthcheck.pingar(sucesso=True)        # dead-man's switch: ciclo concluído ok
     return 0
 
 

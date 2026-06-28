@@ -6,7 +6,9 @@ from typing import Callable
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from app.core.enums import CollectionStatus
 from app.core.loader import load_processadoras_config
+from app.services import healthcheck
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +69,16 @@ class SchedulerService:
         processadoras = self._descobrir_processadoras()
         logger.info("Job agendado iniciado: %d processadoras (resumo único)", len(processadoras))
         try:
-            self._orchestrator_factory().executar_todas(processadoras)
-            logger.info("Job agendado de coleta diária concluído")
+            resultados = self._orchestrator_factory().executar_todas(processadoras)
+            # Dead-man's switch: executar_todas ENGOLE as falhas de coleta (não levanta), então
+            # só pingamos sucesso se ALGUMA processadora coletou (status != erro) — senão o
+            # watchdog ficaria verde numa coleta 100% quebrada.
+            houve_coleta = any(r.execucao.status != CollectionStatus.ERROR.value for r in resultados)
+            logger.info("Job agendado de coleta diária concluído (sucesso=%s)", houve_coleta)
+            healthcheck.pingar(sucesso=houve_coleta)
         except Exception:
             logger.exception("Falha no job agendado de coleta diária")
+            healthcheck.pingar(sucesso=False)
 
     def _parse_horario(self) -> tuple[int, int]:
         partes = self._horario.split(":")
