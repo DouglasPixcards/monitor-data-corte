@@ -35,3 +35,7 @@ links_processadoras.xlsx
 secrets/
 .env.*
 !.env.example
+
+# frontend (painel React/Vite) — artefatos de build/deps
+frontend/node_modules/
+frontend/dist/

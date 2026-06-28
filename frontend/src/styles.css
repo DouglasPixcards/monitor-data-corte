@@ -1,0 +1,104 @@
+:root {
+  --bg: #070b14;
+  --panel: #0e1524;
+  --line: #1c2740;
+  --line-soft: #121c30;
+  --ink: #e8eefc;
+  --muted: #8da2c8;
+  --amber: #ffb000;
+  --green: #34d399;
+  --red: #f87171;
+  --row2: #0a1020;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { max-width: 1200px; margin: 0 auto; padding: 18px 16px 40px; }
+
+/* Cabeçalho estilo painel */
+.topo {
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(180deg, #0e1524, #0a0f1c);
+  border: 1px solid var(--line); border-radius: 12px; padding: 16px 22px;
+}
+.titulo {
+  font-size: clamp(17px, 2.4vw, 26px); font-weight: 800; letter-spacing: 2px;
+  display: flex; align-items: center; gap: 12px;
+}
+.ponto {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 10px var(--green); animation: pisca 2s infinite;
+}
+@keyframes pisca { 50% { opacity: .25; } }
+.meta {
+  color: var(--muted); font-size: 14px; display: flex; gap: 8px; align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.relogio { color: var(--amber); font-weight: 700; }
+
+/* Controles */
+.controls { display: flex; gap: 12px; align-items: center; margin: 16px 0; flex-wrap: wrap; }
+.busca, .filtro {
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+  padding: 10px 14px; border-radius: 9px; font-size: 15px; outline: none;
+}
+.busca:focus, .filtro:focus { border-color: #2c63c7; }
+.busca { flex: 1; min-width: 220px; }
+.filtro { min-width: 220px; cursor: pointer; }
+.contador { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+/* Board */
+.board { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.board-head, .board-row {
+  display: grid; grid-template-columns: 2.2fr 1.4fr 1fr 1.4fr 1fr;
+  gap: 8px; align-items: center; padding: 13px 18px;
+}
+.board-head {
+  background: #0b1322; color: var(--muted); font-size: 12px;
+  text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--line);
+}
+.board-row { border-bottom: 1px solid var(--line-soft); font-size: 15.5px; }
+.board-row:last-child { border-bottom: none; }
+.board-row:nth-child(even) { background: var(--row2); }
+.board-row .conv { display: flex; flex-direction: column; gap: 2px; }
+.board-row .conv .nome { font-weight: 700; }
+.board-row .conv .folha { font-weight: 400; font-style: normal; font-size: 12.5px; color: var(--muted); }
+.board-row .proc { color: var(--muted); }
+.board-row .comp { color: var(--muted); font-variant-numeric: tabular-nums; }
+.board-row .corte b { font-size: 17px; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+.board-row .upd { color: var(--muted); font-size: 13px; }
+
+.board-row.hoje .corte b, .board-row.passou .corte b { color: var(--red); }
+.board-row.breve .corte b { color: var(--amber); }
+
+.tag {
+  display: inline-block; margin-left: 8px; font-size: 11px; font-style: normal;
+  font-weight: 700; padding: 2px 8px; border-radius: 999px; vertical-align: middle;
+}
+.tag.hoje, .tag.passou { background: rgba(248, 113, 113, .15); color: var(--red); }
+.tag.breve { background: rgba(255, 176, 0, .15); color: var(--amber); }
+.tag.ok { background: rgba(52, 211, 153, .12); color: var(--green); }
+
+/* Estados */
+.estado { padding: 28px; text-align: center; color: var(--muted); }
+.estado.erro { color: var(--red); }
+.vazio { padding: 28px; text-align: center; color: var(--muted); }
+.rodape { text-align: center; color: var(--muted); font-size: 12px; margin-top: 18px; }
+
+/* Responsivo: vira cartões no celular */
+@media (max-width: 760px) {
+  .board-head { display: none; }
+  .board-row { grid-template-columns: 1fr auto; row-gap: 2px; padding: 14px 16px; }
+  .board-row .conv { grid-column: 1; grid-row: 1; }
+  .board-row .proc { grid-column: 1; grid-row: 2; }
+  .board-row .comp { grid-column: 1; grid-row: 3; font-size: 13px; }
+  .board-row .corte { grid-column: 2; grid-row: 1 / span 2; text-align: right; align-self: center; }
+  .board-row .upd { grid-column: 1; grid-row: 4; font-size: 12px; }
+}

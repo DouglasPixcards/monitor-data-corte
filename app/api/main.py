@@ -34,15 +34,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.loader import load_processadoras_config
 from app.core.models import DadoCorte, Execucao
 from app.core.settings import settings
-from app.services.comparador_service import ComparadorService
 from app.services.notification.smtp import EmailSMTPNotificador
-from app.services.orchestrator import ColetaOrchestrator
+from app.services.orchestrator_factory import build_orchestrator, build_repositories
 from app.services.scheduler import SchedulerService
-from app.storage.file_storage import (
-    FileDadosCorteRepository,
-    FileEventoRepository,
-    FileExecucaoRepository,
-)
 from app.utils.dates import normalizar_data_corte
 
 logger = logging.getLogger(__name__)
@@ -59,7 +53,7 @@ async def lifespan(app: FastAPI):
         logger.warning("SMTP_HOST não configurado — notificações por e-mail desabilitadas")
     scheduler = SchedulerService(
         horario=settings.COLETA_HORARIO,
-        orchestrator_factory=_build_orchestrator,
+        orchestrator_factory=build_orchestrator,
     )
     scheduler.iniciar()
     yield
@@ -77,21 +71,19 @@ app.add_middleware(
 )
 
 
-def _build_orchestrator() -> ColetaOrchestrator:
-    return ColetaOrchestrator(
-        execucao_repo=FileExecucaoRepository(settings.STORAGE_PATH),
-        dados_repo=FileDadosCorteRepository(settings.STORAGE_PATH),
-        evento_repo=FileEventoRepository(settings.STORAGE_PATH),
-        comparador=ComparadorService(),
-        notificador=EmailSMTPNotificador(
-            host=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
-            user=settings.SMTP_USER,
-            password=settings.SMTP_PASSWORD,
-            use_tls=settings.SMTP_USE_TLS,
-        ),
-        destinatarios=settings.notification_DESTINATARIOS,
-    )
+# ── Painel estático (mini front React/Vite) ───────────────────────────────────
+# Servido em /painel quando o build existir (frontend/dist). Mesma origem da API,
+# então o painel consome /cortes/atuais sem precisar de CORS nem configurar URL.
+from pathlib import Path as _Path
+
+from fastapi.staticfiles import StaticFiles
+
+_PAINEL_DIST = _Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if _PAINEL_DIST.is_dir():
+    app.mount("/painel", StaticFiles(directory=str(_PAINEL_DIST), html=True), name="painel")
+    logger.info("Painel estático montado em /painel (%s)", _PAINEL_DIST)
+else:
+    logger.info("frontend/dist não encontrado — /painel desabilitado (rode 'npm run build').")
 
 
 @app.get("/health")
@@ -154,7 +146,7 @@ def _resolver_key(key: str, config: dict) -> tuple[str, str | None]:
 
 
 def _executar_uma_processadora(processadora: str, convenio_filter: str | None = None) -> dict:
-    execucao = _build_orchestrator().executar(processadora, convenio_filter=convenio_filter)
+    execucao = build_orchestrator().executar(processadora, convenio_filter=convenio_filter)
     return {
         "id": execucao.id,
         "processadora": execucao.processadora,
@@ -221,7 +213,7 @@ def executar_coleta(key: str):
 def listar_execucoes(key: str) -> list[dict]:
     config = load_processadoras_config()
     processadora_key, _ = _resolver_key(key, config)
-    repo = FileExecucaoRepository(settings.STORAGE_PATH)
+    repo, _dados, _eventos = build_repositories()
     return [asdict(e) for e in repo.listar(processadora_key)]
 
 
@@ -230,8 +222,7 @@ def _montar_dados_convenios() -> list[dict]:
     config = load_processadoras_config()
     convenios_config = config["convenios"]
 
-    execucao_repo = FileExecucaoRepository(settings.STORAGE_PATH)
-    dados_repo = FileDadosCorteRepository(settings.STORAGE_PATH)
+    execucao_repo, dados_repo, _eventos = build_repositories()
 
     dados_por_convenio: dict[str, list] = {}
     processadoras_carregadas: set[str] = set()
@@ -342,8 +333,7 @@ def atualizar_data_corte(key: str, body: dict) -> dict:
         data_corte=data_corte,
     )
 
-    execucao_repo = FileExecucaoRepository(settings.STORAGE_PATH)
-    dados_repo = FileDadosCorteRepository(settings.STORAGE_PATH)
+    execucao_repo, dados_repo, _eventos = build_repositories()
     execucao_repo.salvar(execucao)
     dados_repo.salvar_lote([dado])
 
@@ -358,7 +348,7 @@ def listar_eventos(
 ) -> list[dict]:
     config = load_processadoras_config()
     processadora_key, _ = _resolver_key(key, config)
-    repo = FileEventoRepository(settings.STORAGE_PATH)
+    _exec, _dados, repo = build_repositories()
     eventos = repo.listar(processadora_key, dias=dias)
     return [asdict(e) for e in eventos]
 
@@ -367,8 +357,7 @@ def listar_eventos(
 def obter_dados_atuais(key: str) -> list[dict]:
     config = load_processadoras_config()
     processadora_key, convenio_filter = _resolver_key(key, config)
-    execucao_repo = FileExecucaoRepository(settings.STORAGE_PATH)
-    dados_repo = FileDadosCorteRepository(settings.STORAGE_PATH)
+    execucao_repo, dados_repo, _eventos = build_repositories()
     ultima = execucao_repo.buscar_ultima_ok(processadora_key)
     if not ultima:
         return []
