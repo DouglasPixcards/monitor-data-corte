@@ -8,6 +8,7 @@ from app.core.models import DadoCorte, Evento, Execucao
 from app.services.comparador_service import ComparadorService
 from app.services.erro_classifier import classificar_erro
 from app.services.notification.base import NotificadorBase
+from app.services.notification import alerting
 from app.services.notification.digest_builder import DigestBuilder
 from app.services.storage_helpers import now_iso
 from app.storage.repository import (
@@ -259,14 +260,17 @@ class ColetaOrchestrator:
         return res.execucao
 
     def notificar_agregado(self, resultados: list[ResultadoColeta]) -> None:
-        """Envia UM único e-mail consolidando todas as processadoras da rodada."""
-        if not self._destinatarios or not resultados:
+        """Envia UM e-mail consolidado + dispara alerta operacional (Slack/webhook)."""
+        if not resultados:
             return
-        assunto, corpo = DigestBuilder.build_agregado(resultados)
-        try:
-            self._notificador.enviar(assunto, self._destinatarios, corpo)
-        except Exception:
-            logger.exception("Falha ao enviar resumo diário agregado por e-mail")
+        if self._destinatarios:
+            assunto, corpo = DigestBuilder.build_agregado(resultados)
+            try:
+                self._notificador.enviar(assunto, self._destinatarios, corpo)
+            except Exception:
+                logger.exception("Falha ao enviar resumo diário agregado por e-mail")
+        # Alerta operacional (Slack/webhook) — independente do e-mail; só itens acionáveis.
+        alerting.disparar([e for r in resultados for e in r.eventos])
 
     def executar_todas(self, processadoras: list[str]) -> list[ResultadoColeta]:
         """Coleta todas as processadoras e envia UM e-mail consolidado.

@@ -53,5 +53,9 @@ class Settings:
     # de cada coleta. Se a coleta não rodar, o ping falta e o serviço alerta. Vazio = off.
     HEALTHCHECK_URL: str = os.getenv("HEALTHCHECK_URL", "")
 
+    # Alerta operacional: webhook (ex.: Slack incoming webhook) que recebe alertas acionáveis
+    # com severidade ao fim de cada coleta. Vazio = desabilitado.
+    ALERT_WEBHOOK_URL: str = os.getenv("ALERT_WEBHOOK_URL", "")
+
 
 settings = Settings()
