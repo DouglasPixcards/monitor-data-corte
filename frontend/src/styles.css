@@ -107,6 +107,7 @@ body {
 .board-row.clicavel { cursor: pointer; }
 .board-row.clicavel:hover { background: #101a30; }
 .tag.estimativa { background: rgba(255, 176, 0, .12); color: var(--amber); }
+.tag.instavel { background: rgba(248, 113, 113, .15); color: var(--red); }
 
 /* Modal de histórico por convênio */
 .modal-overlay {

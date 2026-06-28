@@ -42,6 +42,9 @@ function BoardRow({ r, onAbrir }) {
         <b className="nome">{r.convenio_nome || r.convenio_key}</b>
         {r.folha && <em className="folha">{r.folha}</em>}
         {r.origem === 'api_estimativa' && <em className="tag estimativa">estimativa</em>}
+        {r.confianca === 'instavel' && (
+          <em className="tag instavel" title="Data de corte mudou várias vezes recentemente">instável</em>
+        )}
       </span>
       <span className="proc">{r.processadora}</span>
       <span className="comp">{r.mes_atual || '—'}</span>

@@ -34,6 +34,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.enums import EventoTipo
 from app.core.loader import load_processadoras_config
 from app.core.models import DadoCorte, Execucao
+from app.services.confianca import JANELA_DIAS, classificar_confianca, mudou_dia_corte
 from app.core.settings import settings
 from app.services.notification.smtp import EmailSMTPNotificador
 from app.services.orchestrator_factory import build_orchestrator, build_repositories
@@ -223,9 +224,10 @@ def _montar_dados_convenios() -> list[dict]:
     config = load_processadoras_config()
     convenios_config = config["convenios"]
 
-    execucao_repo, dados_repo, _eventos = build_repositories()
+    execucao_repo, dados_repo, evento_repo = build_repositories()
 
     dados_por_convenio: dict[str, list] = {}
+    mudancas_por_convenio: dict[str, int] = {}
     processadoras_carregadas: set[str] = set()
 
     for convenio_cfg in convenios_config.values():
@@ -233,6 +235,12 @@ def _montar_dados_convenios() -> list[dict]:
         if processadora_key in processadoras_carregadas:
             continue
         processadoras_carregadas.add(processadora_key)
+
+        # Confiança: conta mudanças de data por convênio na janela (1 query/processadora).
+        for e in evento_repo.listar(processadora_key, dias=JANELA_DIAS):
+            if (e.tipo == EventoTipo.DATA_CORTE_ALTERADA.value
+                    and mudou_dia_corte(e.data_corte_anterior, e.data_corte_nova)):
+                mudancas_por_convenio[e.convenio_key] = mudancas_por_convenio.get(e.convenio_key, 0) + 1
 
         ultima = execucao_repo.buscar_ultima_ok(processadora_key)
         if not ultima:
@@ -258,6 +266,7 @@ def _montar_dados_convenios() -> list[dict]:
                 "data_corte": normalizar_data_corte(default, None, datetime.now(timezone.utc).isoformat()) if default else None,
                 "coletado_em": None,
                 "origem": None,
+                "confianca": classificar_confianca(mudancas_por_convenio.get(convenio_key, 0)),
             })
         else:
             for d in dados:
@@ -270,6 +279,7 @@ def _montar_dados_convenios() -> list[dict]:
                     "data_corte": normalizar_data_corte(d.data_corte, d.mes_atual, d.coletado_em),
                     "coletado_em": d.coletado_em,
                     "origem": d.origem,
+                    "confianca": classificar_confianca(mudancas_por_convenio.get(convenio_key, 0)),
                 })
 
     return resultado
