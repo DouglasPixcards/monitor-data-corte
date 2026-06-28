@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { usePolling, statusCorte, fmtAtualizado, aplicarAgrupamento, fetchHistorico, cortesPorDia } from './lib.js'
+import { usePolling, statusCorte, fmtAtualizado, aplicarAgrupamento, fetchHistorico, cortesPorDia, fetchMetricas } from './lib.js'
 
 const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
@@ -179,6 +179,67 @@ function Calendario({ dados }) {
 }
 
 
+const TEND = { melhorando: '▲', piorando: '▼', estavel: '', sem_dados: '' }
+const fmtPct = (t) => (t == null ? '—' : `${Math.round(t * 100)}%`)
+const classeTaxa = (t) => (t == null ? 'neutra' : t >= 0.9 ? 'alta' : t >= 0.7 ? 'media' : 'baixa')
+
+function Metricas() {
+  const [data, setData] = useState(null)
+  const [erro, setErro] = useState(null)
+
+  useEffect(() => {
+    let vivo = true
+    fetchMetricas()
+      .then((d) => { if (vivo) setData(d) })
+      .catch((e) => { if (vivo) setErro(e.message || 'falha') })
+    return () => { vivo = false }
+  }, [])
+
+  if (erro) return <div className="estado erro">Falha ao carregar métricas ({erro}).</div>
+  if (!data) return <div className="estado">Carregando métricas...</div>
+
+  return (
+    <div className="metricas">
+      <section className="met-bloco">
+        <h3>Taxa de sucesso por processadora</h3>
+        <div className="met-grid">
+          {data.processadoras.map((p) => (
+            <div key={p.processadora} className="met-card">
+              <div className="met-head">
+                <b>{p.processadora}</b>
+                <span className={`met-tend ${p.tendencia}`}>{TEND[p.tendencia]}</span>
+              </div>
+              <div className="met-bar">
+                <span className={classeTaxa(p.taxa_atual)} style={{ width: `${(p.taxa_atual || 0) * 100}%` }} />
+              </div>
+              <div className="met-num">
+                <b>{fmtPct(p.taxa_atual)}</b> agora · {fmtPct(p.taxa_media)} média ({p.execucoes}x)
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="met-bloco">
+        <h3>Convênios com falhas (últimos 30 dias)</h3>
+        {data.convenios_com_falha.length === 0 ? (
+          <div className="vazio">Nenhuma falha registrada. 🎉</div>
+        ) : (
+          <ul className="met-falhas">
+            {data.convenios_com_falha.map((c) => (
+              <li key={`${c.processadora}-${c.convenio_key}`}>
+                <b>{c.convenio_key}</b>
+                <span className="met-meta">{c.processadora} · {c.categoria || '—'}{c.subtipo ? ` · ${c.subtipo}` : ''}</span>
+                <span className="met-falha-count">{c.falhas}×</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}
+
+
 export default function App() {
   const { dados, erro, loading, updatedAt } = usePolling(REFRESH_MS)
   const [busca, setBusca] = useState('')
@@ -248,14 +309,16 @@ export default function App() {
       <div className="vista-toggle">
         <button className={vista === 'board' ? 'ativo' : ''} onClick={() => setVista('board')}>Board</button>
         <button className={vista === 'calendario' ? 'ativo' : ''} onClick={() => setVista('calendario')}>Calendário</button>
+        <button className={vista === 'metricas' ? 'ativo' : ''} onClick={() => setVista('metricas')}>Métricas</button>
       </div>
 
-      {loading && <div className="estado">Carregando dados...</div>}
-      {erro && !loading && (
+      {loading && vista !== 'metricas' && <div className="estado">Carregando dados...</div>}
+      {erro && !loading && vista !== 'metricas' && (
         <div className="estado erro">Falha ao carregar ({erro}). Nova tentativa automática em instantes...</div>
       )}
       {!loading && !erro && vista === 'board' && <Board linhas={linhas} onAbrir={setSelecionado} />}
       {!loading && !erro && vista === 'calendario' && <Calendario dados={dadosCalendario} />}
+      {vista === 'metricas' && <Metricas />}
 
       {selecionado && <HistoricoModal convenio={selecionado} onFechar={() => setSelecionado(null)} />}
 

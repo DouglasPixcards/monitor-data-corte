@@ -37,6 +37,7 @@ from app.core.enums import EventoTipo
 from app.core.loader import load_processadoras_config
 from app.core.models import DadoCorte, Execucao
 from app.services.confianca import JANELA_DIAS, classificar_confianca, mudou_dia_corte
+from app.services import metricas
 from app.core.settings import settings
 from app.services.notification.smtp import EmailSMTPNotificador
 from app.services.orchestrator_factory import build_orchestrator, build_repositories
@@ -340,6 +341,23 @@ def cortes_atuais() -> list[dict]:
     """Dados de corte mais recentes de todos os convênios, ordenados por nome."""
     resultado = _montar_dados_convenios()
     return sorted(resultado, key=lambda r: (r["convenio_nome"] or "").lower())
+
+
+@app.get("/metricas")
+def obter_metricas() -> dict:
+    """Taxa de sucesso por processadora (atual/média/tendência) + convênios com falhas."""
+    config = load_processadoras_config()
+    processadoras = sorted({c["processadora"] for c in config["convenios"].values()})
+    execucao_repo, _dados, evento_repo = build_repositories()
+
+    por_processadora = []
+    falhas: list[dict] = []
+    for proc in processadoras:
+        por_processadora.append({"processadora": proc, **metricas.resumo_processadora(execucao_repo.listar(proc))})
+        for f in metricas.falhas_por_convenio(evento_repo.listar(proc, dias=metricas.JANELA_DIAS)):
+            falhas.append({**f, "processadora": proc})
+    falhas.sort(key=lambda x: x["falhas"], reverse=True)
+    return {"processadoras": por_processadora, "convenios_com_falha": falhas}
 
 
 @app.post("/convenios/{key}/data_corte")

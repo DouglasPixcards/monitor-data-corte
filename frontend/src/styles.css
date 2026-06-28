@@ -184,3 +184,34 @@ body {
   .cal-cel { min-height: 64px; }
   .cal-cortes li { display: none; }
 }
+
+/* Métricas */
+.metricas { display: flex; flex-direction: column; gap: 22px; }
+.met-bloco h3 {
+  font-size: 13px; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 1px; margin-bottom: 12px; font-weight: 700;
+}
+.met-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.met-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.met-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.met-tend { font-size: 13px; }
+.met-tend.melhorando { color: var(--green); }
+.met-tend.piorando { color: var(--red); }
+.met-bar { height: 8px; background: var(--row2); border-radius: 999px; overflow: hidden; }
+.met-bar span { display: block; height: 100%; border-radius: 999px; }
+.met-bar .alta { background: var(--green); }
+.met-bar .media { background: var(--amber); }
+.met-bar .baixa { background: var(--red); }
+.met-bar .neutra { background: var(--line); }
+.met-num { margin-top: 8px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.met-num b { color: var(--ink); font-size: 15px; }
+.met-falhas { list-style: none; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.met-falhas li {
+  display: flex; align-items: center; gap: 12px; padding: 11px 16px;
+  border-bottom: 1px solid var(--line-soft); font-size: 14px;
+}
+.met-falhas li:last-child { border-bottom: none; }
+.met-falhas .met-meta { color: var(--muted); font-size: 12.5px; }
+.met-falhas .met-falha-count {
+  margin-left: auto; color: var(--red); font-weight: 700; font-variant-numeric: tabular-nums;
+}
