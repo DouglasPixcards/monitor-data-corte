@@ -105,11 +105,14 @@ def valor_opcional_apos_separador(page, seletor: str, sep: str = ":") -> str | N
     return loc.inner_text().split(sep)[-1].strip()
 
 
-def linhas_de_tabela(page, seletor: str, timeout: int = _TIMEOUT_EXTRACAO_MS) -> list[list[str]]:
-    """Espera a tabela e devolve as linhas como listas de textos de célula (td)."""
-    tabela = page.locator(seletor)
-    tabela.wait_for(timeout=timeout)
-    linhas = tabela.locator("tr")
+def linhas_de_tabela(
+    page, seletor: str, timeout: int = _TIMEOUT_EXTRACAO_MS, linhas_seletor: str = "tr"
+) -> list[list[str]]:
+    """Espera a PRIMEIRA tabela casada e devolve as linhas (`linhas_seletor`, default "tr";
+    use "tbody tr" para pular o cabeçalho) como listas de textos de célula (td)."""
+    tabela = page.locator(seletor).first
+    tabela.wait_for(state="visible", timeout=timeout)
+    linhas = tabela.locator(linhas_seletor)
     out: list[list[str]] = []
     for i in range(linhas.count()):
         celulas = linhas.nth(i).locator("td")

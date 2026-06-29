@@ -68,6 +68,13 @@
         "username": { "type": "css", "value": "#cpf" },
         "password": { "type": "css", "value": "input[name='senha']" },
         "submit":   { "type": "css", "value": "button[type='submit']" }
+      },
+      "validacao": {
+        "falha_url": ["/login"],
+        "sucesso_seletores": [
+          "text=Sair", "text=Logout", "text=Dashboard", "text=Painel",
+          "[class*='dashboard']", "[class*='sidebar']", "nav[class*='main']"
+        ]
       }
     },
     "consiglog": {

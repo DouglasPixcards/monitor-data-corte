@@ -11,7 +11,9 @@ from app.scrapers.declarativo import (
     validar_acesso,
     valor_opcional_apos_separador,
 )
+from app.scrapers.consigfacil.scraper import ConsigFacilScraper
 from app.scrapers.konexia.scraper import KonexiaScraper
+from app.scrapers.proconsig.scraper import ProconsigScraper
 
 
 # ── Fakes de Playwright ───────────────────────────────────────────────────────
@@ -37,8 +39,12 @@ class _Loc:
     def nth(self, i):
         return self._itens[i]
 
+    @property
+    def first(self):
+        return self
 
-def _tabela(linhas):
+
+def _tabela(linhas, linhas_seletor="tr"):
     tr = _Loc(count=len(linhas))
     for cells in linhas:
         td = _Loc(count=len(cells))
@@ -47,7 +53,7 @@ def _tabela(linhas):
         row._filhos = {"td": td}
         tr._itens.append(row)
     tabela = _Loc()
-    tabela._filhos = {"tr": tr}
+    tabela._filhos = {linhas_seletor: tr}
     return tabela
 
 
@@ -202,3 +208,45 @@ def test_com_retry_relevanta_apos_esgotar():
 
     with pytest.raises(RuntimeError):
         com_retry(_Page(), fn, tentativas=2, espera_ms=0)
+
+
+def test_linhas_de_tabela_com_seletor_de_linha():
+    page = _Page(locators={"#t": _tabela([["a", "b"]], linhas_seletor="tbody tr")})
+    assert linhas_de_tabela(page, "#t", linhas_seletor="tbody tr") == [["a", "b"]]
+
+
+# ── ProConsig + ConsigFácil migrados ──────────────────────────────────────────
+def test_proconsig_collect_usa_helpers():
+    page = _Page(locators={
+        'p:has-text("Fim:")': _Loc(count=1, text="Janela — Fim: 10/05/2026"),
+        'p:has-text("Referência:")': _Loc(count=1, text="Referência: 05/2026"),
+    })
+    sc = ProconsigScraper({}, {"processadora": "proconsig"}, object())
+    sc.page = page
+    assert sc.collect() == [{"data_corte": "10/05/2026", "folha": None, "mes_atual": "05/2026"}]
+
+
+def test_consigfacil_collect_tabela_pula_vazia():
+    page = _Page(
+        url="https://x/pagina_consignatario.php",  # consignatario → sem navegação
+        locators={"table.table.table-consig-info": _tabela([
+            ["Folha A", "05/2026", "10/05/2026"],
+            ["", "", ""],  # linha vazia → pulada
+        ], linhas_seletor="tbody tr")},
+    )
+    sc = ConsigFacilScraper({}, {"processadora": "consigfacil"}, object())
+    sc.page = page
+    assert sc.collect() == [{"folha": "Folha A", "mes_atual": "05/2026", "data_corte": "10/05/2026"}]
+
+
+def test_consigfacil_validate_fail_closed():
+    sc = ConsigFacilScraper({}, {"processadora": "consigfacil"}, object())
+    sc.page = _Page(url="https://x/login.php")
+    with pytest.raises(RuntimeError):
+        sc.validate_access()
+
+
+def test_consigfacil_validate_ok_consignatario():
+    sc = ConsigFacilScraper({}, {"processadora": "consigfacil"}, object())
+    sc.page = _Page(url="https://x/pagina_consignatario.php")
+    sc.validate_access()  # não levanta
