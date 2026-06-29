@@ -1,51 +1,33 @@
+"""Scraper para o portal ConsigUp. Convênios: Muaná.
+
+Validação declarativa (aguarda a URL da landing) + extração da tabela de avisos por regex.
+"""
 from __future__ import annotations
 
-import re
 from typing import Any
 
-from app.scrapers.base_scraper import BaseScraper
+from app.scrapers.declarativo import (
+    ScraperDeclarativo,
+    linhas_de_tabela,
+    primeiro_grupo_regex,
+)
 
 
-class ConsigUpScraper(BaseScraper):
-    def validate_access(self) -> None:
-        if self.page is None:
-            raise RuntimeError("Page não inicializada.")
-
-        self.page.wait_for_url("**/Inicio/Inicio.aspx", timeout=self.timeout)
-
+class ConsigUpScraper(ScraperDeclarativo):
     def collect(self) -> list[dict[str, Any]]:
         if self.page is None:
             raise RuntimeError("Page não inicializada.")
 
-        table = self.page.locator("#MainContent_gvAvisos")
-        table.wait_for(timeout=self.timeout)
-
-        rows = table.locator("tr")
-        total_rows = rows.count()
-
         dados: list[dict[str, Any]] = []
-
-        for i in range(1, total_rows):  # pula header
-            row = rows.nth(i)
-            cells = row.locator("td")
-
-            if cells.count() < 2:
+        linhas = linhas_de_tabela(self.page, "#MainContent_gvAvisos", timeout=self.timeout)
+        for celulas in linhas[1:]:  # pula header
+            if len(celulas) < 2:
                 continue
-
-            data_aviso = cells.nth(0).inner_text().strip()
-            descricao = cells.nth(1).inner_text().strip()
-
-            match = re.search(r"CORTE\s+DIA\s+(\d{1,2})", descricao, re.IGNORECASE)
-
-            data_corte = None
-            if match:
-                dia_corte = match.group(1).zfill(2)
-                data_corte = dia_corte
-
+            data_aviso, descricao = celulas[0], celulas[1]
+            dia = primeiro_grupo_regex(descricao, r"CORTE\s+DIA\s+(\d{1,2})")
             dados.append({
                 "folha": descricao,
                 "mes_atual": data_aviso,
-                "data_corte": data_corte,
+                "data_corte": dia.zfill(2) if dia else None,
             })
-
         return dados

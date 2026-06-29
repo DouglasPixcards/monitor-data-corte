@@ -17,7 +17,8 @@
         "username": { "type": "role", "role": "textbox", "name": "Usuário" },
         "password": { "type": "role", "role": "textbox", "name": "Senha" },
         "submit":   { "type": "role", "role": "button",  "name": "Entrar" }
-      }
+      },
+      "validacao": { "aguardar_url": "**/Inicio/Inicio.aspx" }
     },
     "consigi": {
       "auth_type": "login_password",
@@ -26,6 +27,13 @@
         "username": { "type": "css", "value": "#username" },
         "password": { "type": "css", "value": "#password" },
         "submit":   { "type": "css", "value": "button:has-text('Entrar'),button[type='submit']" }
+      },
+      "validacao": {
+        "falha_url": ["login.xhtml"],
+        "sucesso_seletores": [
+          "text=Sair", "text=Logout", "text=Bem-vindo", "text=Início",
+          "[id*='menuPrincipal']", "[id*='navMenu']", "[class*='dashboard']", "[class*='home']"
+        ]
       }
     },
     "konexia": {
@@ -35,6 +43,13 @@
         "username": { "type": "css", "value": "#username" },
         "password": { "type": "css", "value": "#password" },
         "submit":   { "type": "css", "value": "button:has-text('Entrar'),button[type='submit']" }
+      },
+      "validacao": {
+        "falha_url": ["login.xhtml"],
+        "sucesso_seletores": [
+          "text=Sair", "text=Logout", "text=Bem-vindo", "text=Início",
+          "[id*='menuPrincipal']", "[id*='navMenu']", "[class*='dashboard']", "[class*='home']"
+        ]
       }
     },
     "pbconsig": {
