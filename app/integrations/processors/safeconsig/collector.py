@@ -9,12 +9,13 @@ substituído por uma abstração genérica ApiCollector que qualquer processador
 API possa implementar sem precisar de adapter.
 
 Notas semânticas:
-  - `data_corte` armazena a data estimada de corte: um dia antes da virada de
-    competência, no formato DD/MM/YYYY. Validado empiricamente contra o portal
-    de São João dos Patos (virada em 21/06 → corte em 20/06).
-  - A virada é localizada por busca binária nos últimos _HORIZONTE_DIAS dias
-    (~6 chamadas HTTP), sem necessidade de varredura completa do mês.
-  - Se a virada estiver além do horizonte, `data_corte` cai de volta para a
+  - `data_corte` armazena a PRÓXIMA data estimada de corte: um dia antes da PRÓXIMA
+    virada de competência, no formato DD/MM/YYYY. Validado empiricamente contra o
+    portal de São João dos Patos (virada em 21/06 → corte em 20/06).
+  - A próxima virada é localizada por busca binária nos PRÓXIMOS _HORIZONTE_DIAS dias
+    (~7 chamadas HTTP), sem varredura completa do mês — assim o monitor aponta o corte
+    que está VINDO, não o que já passou (que ficaria estável por um ciclo inteiro).
+  - Se a próxima virada estiver além do horizonte, `data_corte` cai de volta para a
     string de competência (ex: "07/2026") como fallback seguro.
   - O campo `folha` = "virada_competencia" sinaliza para camadas downstream
     (DigestBuilder, logs) que a origem é API e a linguagem deve ser "estimativa".
@@ -37,43 +38,47 @@ _HORIZONTE_DIAS = 40  # janela de busca para a virada de competência
 
 
 def _estimar_data_corte(client: SafeConsigClient, competencia_atual: str) -> str | None:
-    """Localiza a data de corte estimada via busca binária.
+    """Localiza a PRÓXIMA data de corte estimada via busca binária PRA FRENTE.
 
-    Encontra o primeiro dia em que a API passou a retornar `competencia_atual`
-    (= dia da virada) e retorna o dia anterior (= último dia da competência
-    anterior = estimativa de data de corte), no formato DD/MM/YYYY.
+    Procura o primeiro dia FUTURO em que a API deixa de retornar `competencia_atual`
+    (= dia da próxima virada) e retorna o dia anterior (= último dia da competência
+    atual = próxima data de corte estimada), no formato DD/MM/YYYY.
+
+    Olhar pra frente (e não pra trás) garante que o monitor aponte o corte que está
+    VINDO, e não o último que já passou (que ficaria estável por um ciclo inteiro).
 
     Faz no máximo 1 + ceil(log2(_HORIZONTE_DIAS)) ≈ 7 chamadas HTTP.
-    Retorna None se a virada estiver além do horizonte configurado.
+    Retorna None se a próxima virada estiver além do horizonte configurado.
     """
     hoje = date.today()
-    low = hoje - timedelta(days=_HORIZONTE_DIAS)
-    high = hoje
+    low = hoje                                    # assumido com a competência atual (vinda do "agora")
+    high = hoje + timedelta(days=_HORIZONTE_DIAS)
 
-    # Verifica se a competência já era a atual no início do horizonte
-    r_low = client.consultar_mes_primeiro_desconto(f"{low} 10:00:00")
-    if r_low.get("competencia") == competencia_atual:
+    # Se no fim do horizonte a competência ainda for a atual, a virada está além → fallback.
+    r_high = client.consultar_mes_primeiro_desconto(f"{high} 10:00:00")
+    if r_high.get("competencia") == competencia_atual:
         logger.warning(
-            "[SafeConsigCollector] Virada anterior ao horizonte de %d dias "
+            "[SafeConsigCollector] Próxima virada além do horizonte de %d dias "
             "— usando competência como fallback",
             _HORIZONTE_DIAS,
         )
         return None
 
-    # Busca binária: encontrar o primeiro dia com competencia_atual
+    # Busca binária pelo primeiro dia FUTURO com competência != competencia_atual.
+    # Invariante: low sempre na competência atual, high sempre na próxima.
     while (high - low).days > 1:
         mid = low + (high - low) // 2
         r_mid = client.consultar_mes_primeiro_desconto(f"{mid} 10:00:00")
         if r_mid.get("competencia") == competencia_atual:
-            high = mid   # virada está em mid ou antes
+            low = mid    # ainda na atual → virada está depois de mid
         else:
-            low = mid    # virada está depois de mid
+            high = mid   # já virou → virada está em mid ou antes
 
-    # high = primeiro dia com competencia_atual (dia da virada)
-    # data_corte estimada = dia anterior à virada
+    # high = primeiro dia com a PRÓXIMA competência (dia da virada)
+    # data_corte estimada = dia anterior à virada (= low)
     data_corte = high - timedelta(days=1)
     logger.info(
-        "[SafeConsigCollector] Virada em %s → data_corte estimada: %s",
+        "[SafeConsigCollector] Próxima virada em %s → data_corte estimada: %s",
         high.strftime("%d/%m/%Y"),
         data_corte.strftime("%d/%m/%Y"),
     )
@@ -129,7 +134,7 @@ class SafeConsigApiCollector:
                 "erro_categoria": None,
             }
 
-        # Estima a data de corte: um dia antes da virada de competência.
+        # Estima a PRÓXIMA data de corte: um dia antes da próxima virada de competência.
         # Fallback para a string de competência se a busca não encontrar a virada.
         try:
             data_corte = _estimar_data_corte(client, competencia) or competencia
