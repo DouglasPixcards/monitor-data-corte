@@ -8,10 +8,12 @@ Por isso usamos o campo #context-search para filtrar antes de clicar.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Any
 
 from app.scrapers.base_scraper import BaseScraper
+from app.utils.dates import mes_de_abreviacao
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,27 @@ _NAV_TIMEOUT_MS    = 30_000
 _LOAD_TIMEOUT_MS   = 20_000
 _CUTOFF_TIMEOUT_MS = 15_000
 _SEARCH_DEBOUNCE_MS = 700
+
+# A data de corte aparece num <h3> como "DD Mmm" (ex.: "10 Jul"). Os outros <h3> do
+# dashboard são métricas numéricas ("0", "34") — o bug era pegar o primeiro (um "0"),
+# que o pipeline normalizava para lixo tipo "00/08/2026".
+_RE_DIA_MES = re.compile(r"(\d{1,2})\s+([A-Za-z]{3,})")   # "10 Jul"
+_RE_DATA_BR = re.compile(r"\d{1,2}/\d{1,2}/\d{2,4}")      # "10/07/2026"
+
+
+def _escolher_data_corte(candidatos: list[str] | None) -> str | None:
+    """Primeiro <h3> que é uma data — 'DD Mmm' com MÊS conhecido (EN/PT) ou DD/MM/AAAA —,
+    ignorando métricas numéricas ('0','34') e textos tipo '2 New' (palavra que não é mês)."""
+    for t in candidatos or []:
+        if not t:
+            continue
+        s = t.strip()
+        m = _RE_DIA_MES.search(s)
+        if m and mes_de_abreviacao(m.group(2)):
+            return s
+        if _RE_DATA_BR.search(s):
+            return s
+    return None
 
 
 class ConsignetScraper(BaseScraper):
@@ -182,10 +205,12 @@ class ConsignetScraper(BaseScraper):
         return self.page
 
     def _extrair_cutoff_date(self, page) -> str | None:
-        """Extrai o valor do card 'Cut-off Date' no dashboard.
+        """Extrai a data do card 'Cut-off Date'.
 
-        Sobe pelo DOM a partir do h6 'Cut-off Date' até encontrar um pai que
-        contenha um h3 (o valor). Isso evita pegar o h3 de outro card.
+        O card pode ter vários <h3> (carrossel por operação + os <h3> numéricos dos
+        cards vizinhos de métrica). Em vez de pegar o PRIMEIRO <h3> — que podia ser um
+        '0' e virava lixo tipo '00/08/2026' —, coletamos os candidatos e escolhemos o
+        que PARECE uma data (`_escolher_data_corte`). Fallback: todos os <h3> do conteúdo.
         """
         ultimo_erro = None
         for _ in range(3):
@@ -196,22 +221,28 @@ class ConsignetScraper(BaseScraper):
                     .first
                 )
                 h6.wait_for(state="visible", timeout=_CUTOFF_TIMEOUT_MS)
-                texto = h6.evaluate("""
+                # Sobe do h6 até o card e coleta os textos de TODOS os h3 dele.
+                do_card = h6.evaluate("""
                     el => {
                         let parent = el.parentElement;
-                        while (parent) {
-                            const h3 = parent.querySelector('h3');
-                            if (h3) return h3.textContent.trim();
+                        while (parent && parent.id !== 'csg-page-content') {
+                            const h3s = parent.querySelectorAll('h3');
+                            if (h3s.length) return Array.from(h3s, h => (h.textContent || '').trim());
                             parent = parent.parentElement;
-                            if (!parent || parent.id === 'csg-page-content') break;
                         }
-                        return null;
+                        return [];
                     }
                 """)
-                if not texto:
-                    raise RuntimeError("h3 não encontrado a partir do h6 Cut-off Date")
-                logger.debug("[ConsigNet] Cut-off Date raw: %r", texto)
-                return texto
+                valor = _escolher_data_corte(do_card)
+                if not valor:
+                    # A data de corte é o único h3 com dia+mês no conteúdo — pega por aí.
+                    todos = page.locator("#csg-page-content h3").all_inner_texts()
+                    valor = _escolher_data_corte(todos)
+                    logger.debug("[ConsigNet] Cut-off via fallback (h3=%r) → %r", todos, valor)
+                if not valor:
+                    raise RuntimeError(f"nenhum h3 com data no card Cut-off Date (candidatos={do_card!r})")
+                logger.debug("[ConsigNet] Cut-off candidatos=%r → %r", do_card, valor)
+                return valor
             except Exception as e:
                 ultimo_erro = e
                 try:

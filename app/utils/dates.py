@@ -3,10 +3,20 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 
-_MESES_EN: dict[str, int] = {
+_MESES: dict[str, int] = {
+    # inglês (locale observado no ConsigNet)
     "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
     "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    # português (o portal pode variar de locale)
+    "fev": 2, "abr": 4, "mai": 5, "ago": 8, "set": 9, "out": 10, "dez": 12,
 }
+
+
+def mes_de_abreviacao(token: str | None) -> int | None:
+    """Número do mês (1–12) a partir da abreviação EN ou PT (3 letras). None se desconhecido."""
+    if not token:
+        return None
+    return _MESES.get(token.strip().lower()[:3])
 
 
 def normalizar_data_corte(
@@ -44,7 +54,7 @@ def normalizar_data_corte(
     m = re.fullmatch(r"(\d{1,2})\s+([A-Za-z]{3,})", data_corte)
     if m:
         dia = int(m.group(1))
-        mes = _MESES_EN.get(m.group(2).lower()[:3])
+        mes = mes_de_abreviacao(m.group(2))
         if mes:
             ano = _ano_ref(coletado_em)
             return f"{dia:02d}/{mes:02d}/{ano}"
