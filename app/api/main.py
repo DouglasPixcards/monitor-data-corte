@@ -42,7 +42,7 @@ from app.core.settings import settings
 from app.services.notification.smtp import EmailSMTPNotificador
 from app.services.orchestrator_factory import build_orchestrator, build_repositories
 from app.services.scheduler import SchedulerService
-from app.utils.dates import normalizar_data_corte
+from app.utils.dates import derivar_competencia, normalizar_data_corte
 
 logger = logging.getLogger(__name__)
 
@@ -289,32 +289,37 @@ def _montar_dados_convenios() -> list[dict]:
         proc_key = convenio_cfg["processadora"]
         nome = convenio_cfg.get("nome", convenio_key)
         dados = dados_por_convenio.get(convenio_key, [])
+        offset = convenio_cfg.get("competencia_offset", 0)   # meses do corte → competência
 
         if not dados:
             default = convenio_cfg.get("data_corte_default")
+            dc = normalizar_data_corte(default, None, datetime.now(timezone.utc).isoformat()) if default else None
             resultado.append({
                 "convenio_key": convenio_key,
                 "convenio_nome": nome,
                 "processadora": proc_key,
                 "folha": None,
                 "mes_atual": None,
-                "data_corte": normalizar_data_corte(default, None, datetime.now(timezone.utc).isoformat()) if default else None,
+                "data_corte": dc,
                 "coletado_em": None,
                 "origem": None,
                 "confianca": classificar_confianca(mudancas_por_convenio.get(convenio_key, 0)),
+                "competencia": derivar_competencia(dc, offset),
             })
         else:
             for d in dados:
+                dc = normalizar_data_corte(d.data_corte, d.mes_atual, d.coletado_em)
                 resultado.append({
                     "convenio_key": convenio_key,
                     "convenio_nome": nome,
                     "processadora": proc_key,
                     "folha": d.folha,
                     "mes_atual": d.mes_atual,
-                    "data_corte": normalizar_data_corte(d.data_corte, d.mes_atual, d.coletado_em),
+                    "data_corte": dc,
                     "coletado_em": d.coletado_em,
                     "origem": d.origem,
                     "confianca": classificar_confianca(mudancas_por_convenio.get(convenio_key, 0)),
+                    "competencia": derivar_competencia(dc, offset),
                 })
 
     return resultado

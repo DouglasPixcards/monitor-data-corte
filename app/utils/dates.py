@@ -180,3 +180,24 @@ def salto_data_corte_suspeito(anterior: str | None, atual: str | None) -> bool:
     if da is None or db is None:
         return False
     return abs((db - da).days) > _MAX_SALTO_DIAS
+
+
+def derivar_competencia(data_corte: str | None, offset: int = 0) -> str | None:
+    """Competência (MM/YYYY) que uma data de corte FECHA = mês/ano do corte + `offset` meses.
+
+    A competência não sai da data sozinha (depende da convenção do convênio) — o `offset` é
+    validado manualmente por convênio. Aceita DD/MM/YYYY (data real) ou MM/YYYY (competência/
+    estimativa). Usa só MÊS/ANO — o dia não influi na competência (mensal). None se não parseável.
+    """
+    s = (data_corte or "").strip()
+    m = re.fullmatch(r"\d{1,2}/(\d{1,2})/(\d{4})", s)   # DD/MM/YYYY → mês, ano
+    if not m:
+        m = re.fullmatch(r"(\d{1,2})/(\d{4})", s)       # MM/YYYY → mês, ano
+    if not m:
+        return None
+    mes, ano = int(m.group(1)), int(m.group(2))
+    if not 1 <= mes <= 12:
+        return None
+    total = ano * 12 + (mes - 1) + offset
+    ano2, mes2 = divmod(total, 12)
+    return f"{mes2 + 1:02d}/{ano2}"

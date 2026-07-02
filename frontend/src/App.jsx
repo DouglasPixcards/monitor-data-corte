@@ -49,7 +49,7 @@ function BoardRow({ r, onAbrir }) {
         )}
       </span>
       <span className="proc">{r.processadora}</span>
-      <span className="comp">{r.mes_atual || '—'}</span>
+      <span className="comp">{r.competencia || '—'}</span>
       <span className="corte">
         <b>{r.data_corte || '—'}</b>
         {st.label && <em className={`tag ${st.cls}`}>{st.label}</em>}
@@ -163,8 +163,10 @@ function Calendario({ dados }) {
                   <b className="cal-count">{cortes.length}</b>
                   <ul>
                     {cortes.slice(0, 4).map((c, j) => {
-                      const rotulo = (c.convenio_nome || c.convenio_key) + (c.folha ? ` · ${c.folha}` : '')
-                      return <li key={j} title={rotulo}>{rotulo}</li>
+                      const nome = c.convenio_nome || c.convenio_key
+                      const rotulo = c.competencia ? `${nome} · ${c.competencia}` : nome
+                      const dica = nome + (c.folha ? ` · ${c.folha}` : '') + (c.competencia ? ` · comp ${c.competencia}` : '')
+                      return <li key={j} title={dica}>{rotulo}</li>
                     })}
                     {cortes.length > 4 && <li className="mais">+{cortes.length - 4}</li>}
                   </ul>

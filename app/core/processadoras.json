@@ -211,14 +211,16 @@
       "processadora": "consiglog",
       "credential_env_key": "CONSIGLOG_DUQUE_DE_CAXIAS_RJ",
       "base_url": "https://saec.consiglog.com.br/Login.aspx",
-      "orgao_sigla": "RJ - DUQUE CAXIAS"
+      "orgao_sigla": "RJ - DUQUE CAXIAS",
+      "competencia_offset": 1
     },
     "IPMDC": {
       "nome": "IPMDC",
       "processadora": "consiglog",
       "credential_env_key": "CONSIGLOG_DUQUE_DE_CAXIAS_RJ",
       "base_url": "https://saec.consiglog.com.br/Login.aspx",
-      "orgao_sigla": "RJ - IPMDC"
+      "orgao_sigla": "RJ - IPMDC",
+      "competencia_offset": 1
     },
     "pilar": {
       "nome": "Pilar",
