@@ -246,3 +246,77 @@ body {
   font-size: 12px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
 }
 .user-chip .sair:hover { color: var(--ink); border-color: #2c63c7; }
+
+/* ── Remessas (grid colaborativo) ──────────────────────────────────────────── */
+.remessas .controls { margin-top: 0; }
+.acao {
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+  padding: 9px 14px; border-radius: 9px; font-size: 14px; cursor: pointer; white-space: nowrap;
+}
+.acao:hover { border-color: #2c63c7; }
+.rem-erro { padding: 10px 16px; border: 1px solid rgba(248,113,113,.4); border-radius: 9px; margin-bottom: 12px; text-align: left; }
+
+.rem-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.rem-grid { min-width: 1500px; }
+.rem-grid.oper { min-width: 720px; }
+.rem-head, .rem-row {
+  display: grid; gap: 6px; align-items: center; padding: 9px 12px;
+  grid-template-columns: 84px 220px 120px 105px 110px 64px 92px
+                         100px 56px 100px 56px 100px 56px 120px 44px minmax(160px, 1fr);
+}
+.rem-head.oper, .rem-row.oper { grid-template-columns: 84px minmax(240px, 1fr) 160px 200px; }
+.rem-head {
+  background: #0b1322; color: var(--muted); font-size: 11px; text-transform: uppercase;
+  letter-spacing: .6px; border-bottom: 1px solid var(--line); position: sticky; top: 0;
+}
+.rem-row { border-bottom: 1px solid var(--line-soft); font-size: 13.5px; }
+.rem-row:last-child { border-bottom: none; }
+.rem-row:nth-child(even) { background: var(--row2); }
+.rem-row .cod { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.rem-row .nome { cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rem-row .nome:hover { color: #8ab4ff; }
+.rem-row .num { text-align: right; font-variant-numeric: tabular-nums; display: inline-flex; justify-content: flex-end; gap: 4px; }
+.rem-row .num.na { color: var(--line); justify-content: center; }
+.rem-row .obs { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+
+.copy-btn { background: none; border: none; cursor: pointer; font-size: 12px; padding: 1px 3px; opacity: .55; }
+.copy-btn:hover { opacity: 1; }
+
+.cel { display: inline-block; min-width: 24px; min-height: 18px; }
+.cel.editavel { cursor: pointer; border-bottom: 1px dashed var(--line); }
+.cel.editavel:hover { border-bottom-color: #2c63c7; color: #8ab4ff; }
+.cel.salvando { opacity: .45; }
+.cel-input {
+  background: var(--panel); border: 1px solid #2c63c7; color: var(--ink);
+  padding: 3px 6px; border-radius: 6px; font-size: 13px; width: 110px; outline: none;
+}
+.cel-check { cursor: default; color: var(--muted); }
+.cel-check.sim { color: var(--green); font-weight: 700; }
+.cel-check.editavel { cursor: pointer; }
+
+.cel.alterada, .rem-row .alterada { background: rgba(248,113,113,.16); border-radius: 5px; padding: 2px 6px; color: var(--red); font-weight: 700; }
+.aceitar {
+  background: rgba(52, 211, 153, .12); border: 1px solid rgba(52,211,153,.4); color: var(--green);
+  font-size: 10.5px; padding: 1px 7px; border-radius: 999px; cursor: pointer; margin-left: 6px;
+}
+.banksoft-sugestao em { color: var(--muted); font-style: normal; }
+.tag.a-coletar { background: rgba(255, 176, 0, .15); color: var(--amber); }
+.tag.st-enviado { background: rgba(52, 211, 153, .12); color: var(--green); }
+.tag.st-pendente { background: rgba(255, 176, 0, .15); color: var(--amber); }
+.tag.st-automatico { background: rgba(141, 162, 200, .15); color: var(--muted); }
+.diverg { cursor: help; font-style: normal; }
+.link-portal { text-decoration: none; font-size: 12px; }
+
+/* Painel admin */
+.admin-panel { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+.admin-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.admin-form .busca { flex: initial; min-width: 140px; }
+.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; }
+.admin-lista { display: flex; flex-direction: column; }
+.admin-item {
+  display: flex; gap: 10px; align-items: center; padding: 8px 4px;
+  border-bottom: 1px solid var(--line-soft); font-size: 13.5px;
+}
+.admin-item:last-child { border-bottom: none; }
+.admin-item.inativo { opacity: .45; }
+.admin-item .produtos { color: var(--muted); font-size: 12px; margin-left: auto; }

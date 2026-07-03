@@ -29,6 +29,35 @@ export const fetchMe = () => api('/auth/me')
 export const login = (username, password) => api('/auth/login', { method: 'POST', body: { username, password } })
 export const logout = () => api('/auth/logout', { method: 'POST' })
 
+// Remessas — ciclos / registros / competências / usuários
+export const fetchCiclos = (competencia) =>
+  api(`/remessas/ciclos${competencia ? `?competencia=${encodeURIComponent(competencia)}` : ''}`)
+export const patchCiclo = (id, campos) => api(`/remessas/ciclos/${id}`, { method: 'PATCH', body: campos })
+export const fetchAuditoria = (cicloId) => api(`/remessas/ciclos/${cicloId}/auditoria`)
+export const fetchCompetencias = () => api('/remessas/competencias')
+export const abrirCompetencia = (comp) =>
+  api(`/remessas/competencias/${encodeURIComponent(comp.replace('/', '-'))}/abrir`, { method: 'POST' })
+export const fetchRegistros = () => api('/remessas/registros')
+export const criarRegistro = (dados) => api('/remessas/registros', { method: 'POST', body: dados })
+export const patchRegistro = (id, campos) => api(`/remessas/registros/${id}`, { method: 'PATCH', body: campos })
+export const fetchMonitorKeys = () => api('/remessas/monitor-keys')
+export const fetchUsuarios = () => api('/auth/usuarios')
+export const criarUsuario = (dados) => api('/auth/usuarios', { method: 'POST', body: dados })
+export const patchUsuario = (id, campos) => api(`/auth/usuarios/${id}`, { method: 'PATCH', body: campos })
+export const executarColeta = (key) => api(`/coletas/${encodeURIComponent(key)}/executar`, { method: 'POST' })
+
+// Formatação pt-BR
+export const fmtDataISO = (iso) => {
+  if (!iso) return null
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+export const fmtMoney = (s) => {
+  if (s == null || s === '') return null
+  const n = Number(s)
+  return Number.isNaN(n) ? s : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 // Busca os dados de corte atuais na API do Monitor (mesma origem quando servido em /painel).
 export async function fetchCortes() {
   const res = await fetch('/cortes/atuais', { headers: { Accept: 'application/json' } })

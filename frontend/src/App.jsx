@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePolling, statusCorte, fmtAtualizado, aplicarAgrupamento, fetchHistorico, cortesPorDia, fetchMetricas } from './lib.js'
 import { Login, UserChip, UserContext, useSession } from './auth.jsx'
+import RemessasView from './remessas/RemessasView.jsx'
 
 const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
@@ -300,29 +301,35 @@ function Painel({ user, remessasEnabled, onLogout }) {
         </div>
       </header>
 
-      <Controls
-        busca={busca}
-        setBusca={setBusca}
-        proc={proc}
-        setProc={setProc}
-        processadoras={processadoras}
-        total={ordenados.length}
-        exibidos={linhas.length}
-      />
+      {vista !== 'remessas' && (
+        <Controls
+          busca={busca}
+          setBusca={setBusca}
+          proc={proc}
+          setProc={setProc}
+          processadoras={processadoras}
+          total={ordenados.length}
+          exibidos={linhas.length}
+        />
+      )}
 
       <div className="vista-toggle">
         <button className={vista === 'board' ? 'ativo' : ''} onClick={() => setVista('board')}>Board</button>
         <button className={vista === 'calendario' ? 'ativo' : ''} onClick={() => setVista('calendario')}>Calendário</button>
         <button className={vista === 'metricas' ? 'ativo' : ''} onClick={() => setVista('metricas')}>Métricas</button>
+        {remessasEnabled && user && (
+          <button className={vista === 'remessas' ? 'ativo' : ''} onClick={() => setVista('remessas')}>Remessas</button>
+        )}
       </div>
 
-      {loading && vista !== 'metricas' && <div className="estado">Carregando dados...</div>}
-      {erro && !loading && vista !== 'metricas' && (
+      {loading && vista !== 'metricas' && vista !== 'remessas' && <div className="estado">Carregando dados...</div>}
+      {erro && !loading && vista !== 'metricas' && vista !== 'remessas' && (
         <div className="estado erro">Falha ao carregar ({erro}). Nova tentativa automática em instantes...</div>
       )}
       {!loading && !erro && vista === 'board' && <Board linhas={linhas} onAbrir={setSelecionado} />}
       {!loading && !erro && vista === 'calendario' && <Calendario dados={dadosCalendario} />}
       {vista === 'metricas' && <Metricas />}
+      {vista === 'remessas' && <RemessasView />}
 
       {selecionado && <HistoricoModal convenio={selecionado} onFechar={() => setSelecionado(null)} />}
 
