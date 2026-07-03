@@ -174,6 +174,21 @@ def abrir_competencia(competencia: str,
         with session_scope() as session:
             criados = svc.ensure_ciclos(session, competencia, usuario=admin)
             comp, _ = svc.parse_competencia(competencia)
-            return {"competencia": comp, "ciclos_criados": criados}
+        # Ciclos criados → puxa os valores do monitor de cara (fora da transação acima).
+        from app.services.remessas_sync import sincronizar_data_site
+        sync = sincronizar_data_site(comp)
+        return {"competencia": comp, "ciclos_criados": criados, "sync": sync}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+# ── Sync monitor → ciclos ─────────────────────────────────────────────────────
+
+@router.post("/sync")
+def sync(competencia: str | None = Query(default=None),
+         _u: UsuarioRow = Depends(require_roles("admin", "conciliacao"))) -> dict:
+    from app.services.remessas_sync import sincronizar_data_site
+    try:
+        return sincronizar_data_site(competencia)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

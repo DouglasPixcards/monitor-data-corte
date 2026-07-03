@@ -72,8 +72,19 @@ async def lifespan(app: FastAPI):
         orchestrator_factory=build_orchestrator,
     )
     scheduler.iniciar()
+    sync_scheduler = None
+    if settings.REMESSAS_ENABLED:
+        # Sync horário monitor → ciclos de remessa (além do botão manual no painel).
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from app.services.remessas_sync import job_sync_periodico
+        sync_scheduler = BackgroundScheduler()
+        sync_scheduler.add_job(job_sync_periodico, "interval", hours=1, id="remessas_sync")
+        sync_scheduler.start()
+        logger.info("Sync de remessas agendado (a cada 1h)")
     yield
     scheduler.parar()
+    if sync_scheduler is not None:
+        sync_scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="Pipeline Corte API", lifespan=lifespan)
@@ -292,75 +303,8 @@ def listar_execucoes(key: str) -> list[dict]:
     return [asdict(e) for e in repo.listar(processadora_key)]
 
 
-def _montar_dados_convenios() -> list[dict]:
-    """Retorna dados de corte mais recentes de todos os convênios (sem filtros)."""
-    config = load_processadoras_config()
-    convenios_config = config["convenios"]
-
-    execucao_repo, dados_repo, evento_repo = build_repositories()
-
-    dados_por_convenio: dict[str, list] = {}
-    mudancas_por_convenio: dict[str, int] = {}
-    processadoras_carregadas: set[str] = set()
-
-    for convenio_cfg in convenios_config.values():
-        processadora_key = convenio_cfg["processadora"]
-        if processadora_key in processadoras_carregadas:
-            continue
-        processadoras_carregadas.add(processadora_key)
-
-        # Confiança: conta mudanças de data por convênio na janela (1 query/processadora).
-        for e in evento_repo.listar(processadora_key, dias=JANELA_DIAS):
-            if (e.tipo == EventoTipo.DATA_CORTE_ALTERADA.value
-                    and mudou_dia_corte(e.data_corte_anterior, e.data_corte_nova)):
-                mudancas_por_convenio[e.convenio_key] = mudancas_por_convenio.get(e.convenio_key, 0) + 1
-
-        ultima = execucao_repo.buscar_ultima_ok(processadora_key)
-        if not ultima:
-            continue
-
-        for d in dados_repo.buscar_por_execucao(ultima.id):
-            dados_por_convenio.setdefault(d.convenio_key, []).append(d)
-
-    resultado = []
-    for convenio_key, convenio_cfg in convenios_config.items():
-        proc_key = convenio_cfg["processadora"]
-        nome = convenio_cfg.get("nome", convenio_key)
-        dados = dados_por_convenio.get(convenio_key, [])
-        offset = convenio_cfg.get("competencia_offset", 0)   # meses do corte → competência
-
-        if not dados:
-            default = convenio_cfg.get("data_corte_default")
-            dc = normalizar_data_corte(default, None, datetime.now(timezone.utc).isoformat()) if default else None
-            resultado.append({
-                "convenio_key": convenio_key,
-                "convenio_nome": nome,
-                "processadora": proc_key,
-                "folha": None,
-                "mes_atual": None,
-                "data_corte": dc,
-                "coletado_em": None,
-                "origem": None,
-                "confianca": classificar_confianca(mudancas_por_convenio.get(convenio_key, 0)),
-                "competencia": derivar_competencia(dc, offset),
-            })
-        else:
-            for d in dados:
-                dc = normalizar_data_corte(d.data_corte, d.mes_atual, d.coletado_em)
-                resultado.append({
-                    "convenio_key": convenio_key,
-                    "convenio_nome": nome,
-                    "processadora": proc_key,
-                    "folha": d.folha,
-                    "mes_atual": d.mes_atual,
-                    "data_corte": dc,
-                    "coletado_em": d.coletado_em,
-                    "origem": d.origem,
-                    "confianca": classificar_confianca(mudancas_por_convenio.get(convenio_key, 0)),
-                    "competencia": derivar_competencia(dc, offset),
-                })
-
-    return resultado
+# Montagem extraída para app/services/consulta_service.py (o sync das remessas usa a MESMA).
+from app.services.consulta_service import montar_dados_convenios as _montar_dados_convenios
 
 
 @app.get("/convenios")

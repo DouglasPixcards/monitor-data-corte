@@ -46,8 +46,8 @@ def test_cortes_atuais_expoe_origem_e_confianca_estavel():
     exec_repo = MagicMock(); exec_repo.buscar_ultima_ok.return_value = execucao
     dados_repo = MagicMock(); dados_repo.buscar_por_execucao.return_value = [dado]
     evento_repo = MagicMock(); evento_repo.listar.return_value = []  # 0 mudanças → estável
-    with patch("app.api.main.load_processadoras_config", return_value=cfg), \
-         patch("app.api.main.build_repositories", return_value=(exec_repo, dados_repo, evento_repo)):
+    with patch("app.services.consulta_service.load_processadoras_config", return_value=cfg), \
+         patch("app.services.consulta_service.build_repositories", return_value=(exec_repo, dados_repo, evento_repo)):
         resp = client.get("/cortes/atuais")
     assert resp.status_code == 200
     [row] = resp.json()
@@ -72,8 +72,8 @@ def test_cortes_atuais_confianca_instavel_com_muitas_mudancas():
     exec_repo = MagicMock(); exec_repo.buscar_ultima_ok.return_value = execucao
     dados_repo = MagicMock(); dados_repo.buscar_por_execucao.return_value = [dado]
     evento_repo = MagicMock(); evento_repo.listar.return_value = mudancas
-    with patch("app.api.main.load_processadoras_config", return_value=cfg), \
-         patch("app.api.main.build_repositories", return_value=(exec_repo, dados_repo, evento_repo)):
+    with patch("app.services.consulta_service.load_processadoras_config", return_value=cfg), \
+         patch("app.services.consulta_service.build_repositories", return_value=(exec_repo, dados_repo, evento_repo)):
         resp = client.get("/cortes/atuais")
     [row] = resp.json()
     assert row["confianca"] == "instavel"
@@ -97,8 +97,8 @@ def test_cortes_atuais_avanco_de_mes_nao_vira_instavel():
     exec_repo = MagicMock(); exec_repo.buscar_ultima_ok.return_value = execucao
     dados_repo = MagicMock(); dados_repo.buscar_por_execucao.return_value = [dado]
     evento_repo = MagicMock(); evento_repo.listar.return_value = rolls
-    with patch("app.api.main.load_processadoras_config", return_value=cfg), \
-         patch("app.api.main.build_repositories", return_value=(exec_repo, dados_repo, evento_repo)):
+    with patch("app.services.consulta_service.load_processadoras_config", return_value=cfg), \
+         patch("app.services.consulta_service.build_repositories", return_value=(exec_repo, dados_repo, evento_repo)):
         resp = client.get("/cortes/atuais")
     [row] = resp.json()
     assert row["confianca"] == "estavel"

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  abrirCompetencia, fetchAuditoria, fetchCiclos, fetchCompetencias,
-  fmtDataISO, fmtMoney, patchCiclo,
+  abrirCompetencia, executarColeta, fetchAuditoria, fetchCiclos, fetchCompetencias,
+  fmtDataISO, fmtMoney, informarDataCorte, patchCiclo, syncRemessas,
 } from '../lib.js'
 import { useUser } from '../auth.jsx'
 import AdminPanel from './AdminPanel.jsx'
@@ -116,12 +116,46 @@ function BanksoftCell({ ciclo, podeEditar, salvarCampo }) {
 }
 
 // data_site: monitorado = leitura (com vermelho quando mudou); não-monitorado = input manual.
-function DataSiteCell({ ciclo, role, salvarCampo }) {
+function DataSiteCell({ ciclo, role, salvarCampo, onReload, onErro }) {
+  const [ocupado, setOcupado] = useState(false)
   const monitorado = !!ciclo.registro.monitor_key || role === 'operacoes'
   const podeCiente = role !== 'operacoes'
   const cls = ciclo.data_site_alterada ? 'alterada' : ''
+
+  const informar = async () => {
+    const dataBR = prompt('Data de corte vista no portal (DD/MM/AAAA):')
+    if (!dataBR) return
+    setOcupado(true)
+    try {
+      await informarDataCorte(ciclo.registro.monitor_key, dataBR.trim())
+      await syncRemessas(ciclo.competencia)
+      onReload()
+    } catch (e) { onErro(e.message) } finally { setOcupado(false) }
+  }
+  const coletar = async () => {
+    if (!confirm('Disparar a coleta agora? Pode levar alguns minutos.')) return
+    setOcupado(true)
+    try {
+      await executarColeta(ciclo.registro.monitor_key)
+      await syncRemessas(ciclo.competencia)
+      onReload()
+    } catch (e) { onErro(e.message) } finally { setOcupado(false) }
+  }
+
   if (ciclo.a_coletar) {
-    return <em className="tag a-coletar" title="Ainda sem data coletada nesta competência">A coletar</em>
+    return (
+      <span className="a-coletar-wrap">
+        <em className="tag a-coletar" title="Ainda sem data coletada nesta competência">
+          {ocupado ? 'coletando…' : 'A coletar'}
+        </em>
+        {role !== 'operacoes' && !ocupado && (
+          <>
+            <button className="aceitar" onClick={informar} title="Vi a data no portal — informar manualmente">informar</button>
+            <button className="aceitar" onClick={coletar} title="Rodar o scraper agora">coletar</button>
+          </>
+        )}
+      </span>
+    )
   }
   if (monitorado) {
     return (
@@ -156,7 +190,7 @@ function DivergenciaIcone({ ativo, titulo }) {
 }
 
 // ── Linha do grid ─────────────────────────────────────────────────────────────
-function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro }) {
+function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro, onReload }) {
   const salvarCampo = useCallback(async (campo, valor) => {
     try {
       const atualizado = await patchCiclo(ciclo.id, { [campo]: valor })
@@ -175,7 +209,7 @@ function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro }) {
       <div className="rem-row oper">
         <span className="cod"><b>{ciclo.registro.cod_empr}</b><CopyButton valor={ciclo.registro.cod_empr} /></span>
         <span className="nome">{ciclo.registro.nome}</span>
-        <span><DataSiteCell ciclo={ciclo} role={role} salvarCampo={salvarCampo} /></span>
+        <span><DataSiteCell ciclo={ciclo} role={role} salvarCampo={salvarCampo} onReload={onReload} onErro={onErro} /></span>
         <span><BanksoftCell ciclo={ciclo} podeEditar={escreveOper} salvarCampo={salvarCampo} /></span>
       </div>
     )
@@ -202,7 +236,7 @@ function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro }) {
       <span className="nome" onClick={() => onAbrirAuditoria(ciclo)} title="Ver histórico de alterações">
         {ciclo.registro.nome}
       </span>
-      <span><DataSiteCell ciclo={ciclo} role={role} salvarCampo={salvarCampo} /></span>
+      <span><DataSiteCell ciclo={ciclo} role={role} salvarCampo={salvarCampo} onReload={onReload} onErro={onErro} /></span>
       <span>
         <CellEdit valor={ciclo.data_envio} exibicao={fmtDataISO(ciclo.data_envio)} tipo="date"
                   podeEditar={escreveConc} onSalvar={(v) => salvarCampo('data_envio', v)} />
@@ -353,6 +387,16 @@ export default function RemessasView() {
         </select>
         <input className="busca" type="search" placeholder="Buscar convênio ou código..."
                value={busca} onChange={(e) => setBusca(e.target.value)} />
+        {(role === 'admin' || role === 'conciliacao') && (
+          <button className="acao" onClick={async () => {
+            try {
+              const r = await syncRemessas(compAtual)
+              mostrarErro(`Sync: ${r.atualizados} atualizado(s), ${r.alterados} mudança(s)` +
+                (r.conflitos.length ? `, ${r.conflitos.length} conflito(s)` : ''))
+              carregar(compAtual)
+            } catch (e) { mostrarErro(e.message) }
+          }} title="Puxar as datas do monitor agora">↻ Sync</button>
+        )}
         {role === 'admin' && (
           <>
             <button className="acao" onClick={abrirNova}>Abrir competência</button>
@@ -386,7 +430,8 @@ export default function RemessasView() {
             )}
             {filtrados.map((c) => (
               <CicloRow key={c.id} ciclo={c} role={role} onPatch={onPatch}
-                        onAbrirAuditoria={setAuditoriaDe} onErro={mostrarErro} />
+                        onAbrirAuditoria={setAuditoriaDe} onErro={mostrarErro}
+                        onReload={() => carregar(compAtual)} />
             ))}
           </div>
         </div>

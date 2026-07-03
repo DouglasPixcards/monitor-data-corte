@@ -24,8 +24,8 @@ def test_cortes_atuais_expoe_competencia_com_offset():
     exec_repo = MagicMock(); exec_repo.buscar_ultima_ok.return_value = execucao
     dados_repo = MagicMock(); dados_repo.buscar_por_execucao.return_value = [d_cotia, d_ipmdc]
     evento_repo = MagicMock(); evento_repo.listar.return_value = []
-    with patch("app.api.main.load_processadoras_config", return_value=cfg), \
-         patch("app.api.main.build_repositories", return_value=(exec_repo, dados_repo, evento_repo)):
+    with patch("app.services.consulta_service.load_processadoras_config", return_value=cfg), \
+         patch("app.services.consulta_service.build_repositories", return_value=(exec_repo, dados_repo, evento_repo)):
         resp = client.get("/cortes/atuais")
     assert resp.status_code == 200
     por_conv = {r["convenio_key"]: r["competencia"] for r in resp.json()}

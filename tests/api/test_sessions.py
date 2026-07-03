@@ -125,9 +125,9 @@ def test_sessao_valida_passa_pelo_middleware_basic():
     with patch.object(settings, "PANEL_PASSWORD", "segredo"), \
          _remessas_on(), \
          patch("app.services.auth_service.validar_sessao", return_value=_user()), \
-         patch("app.api.main.load_processadoras_config",
+         patch("app.services.consulta_service.load_processadoras_config",
                return_value={"processadoras": {}, "convenios": {}}), \
-         patch("app.api.main.build_repositories", return_value=repos):
+         patch("app.services.consulta_service.build_repositories", return_value=repos):
         resp = client.get("/convenios", cookies={"sessao": "tok"})
     assert resp.status_code == 200
 

@@ -45,6 +45,10 @@ export const fetchUsuarios = () => api('/auth/usuarios')
 export const criarUsuario = (dados) => api('/auth/usuarios', { method: 'POST', body: dados })
 export const patchUsuario = (id, campos) => api(`/auth/usuarios/${id}`, { method: 'PATCH', body: campos })
 export const executarColeta = (key) => api(`/coletas/${encodeURIComponent(key)}/executar`, { method: 'POST' })
+export const syncRemessas = (competencia) =>
+  api(`/remessas/sync${competencia ? `?competencia=${encodeURIComponent(competencia)}` : ''}`, { method: 'POST' })
+export const informarDataCorte = (monitorKey, dataBR) =>
+  api(`/convenios/${encodeURIComponent(monitorKey)}/data_corte`, { method: 'POST', body: { data_corte: dataBR } })
 
 // Formatação pt-BR
 export const fmtDataISO = (iso) => {
