@@ -39,12 +39,18 @@ def main() -> int:
     if len(senha) < 8:
         print("ERRO: senha precisa de ao menos 8 caracteres.")
         return 1
+    if len(senha.encode("utf-8")) > 72:
+        print("ERRO: senha excede 72 bytes (limite do bcrypt).")
+        return 1
 
     db.assert_ready()  # falha claro se o Postgres/migrations não estão prontos
 
     with db.session_scope() as session:
+        # Só admins ATIVOS bloqueiam o bootstrap (um admin desativado não pode
+        # impedir a recuperação do sistema).
         ja_existe = session.execute(
-            select(UsuarioRow).where(UsuarioRow.role == "admin")
+            select(UsuarioRow).where(UsuarioRow.role == "admin",
+                                     UsuarioRow.ativo.is_(True))
         ).scalars().first()
         if ja_existe is not None:
             print(f"ERRO: já existe um admin ({ja_existe.username}) — "

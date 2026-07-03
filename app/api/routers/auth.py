@@ -34,8 +34,8 @@ def _user_publico(u: UsuarioRow) -> dict:
 # ── Sessão ────────────────────────────────────────────────────────────────────
 
 class LoginBody(BaseModel):
-    username: str = Field(min_length=1)
-    password: str = Field(min_length=1)
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=200)
 
 
 @router.post("/login")
@@ -123,6 +123,12 @@ def atualizar_usuario(usuario_id: str, body: AtualizarUsuarioBody,
         usuario = session.get(UsuarioRow, usuario_id)
         if usuario is None:
             raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        # Anti-lockout: nunca desativar/rebaixar o ÚLTIMO admin ativo (seria irrecuperável).
+        vai_perder_admin = usuario.role == "admin" and usuario.ativo and (
+            body.ativo is False or (body.role is not None and body.role != "admin"))
+        if vai_perder_admin and auth_service.outros_admins_ativos(session, usuario.id) == 0:
+            raise HTTPException(status_code=409,
+                                detail="Não é possível desativar/rebaixar o último admin ativo.")
         if body.display_name is not None:
             usuario.display_name = body.display_name.strip()
         if body.role is not None:

@@ -57,6 +57,10 @@ async def lifespan(app: FastAPI):
         from app.storage import db as _db
         _db.assert_ready()
         logger.info("Módulo de remessas HABILITADO (Postgres na head)")
+        if not settings.COOKIE_SECURE:
+            logger.warning(
+                "COOKIE_SECURE desligado — cookies de sessão trafegam em HTTP puro. "
+                "Ligue em produção (atrás de TLS).")
     else:
         logger.info("Módulo de remessas desabilitado (STORAGE_BACKEND != postgres)")
     if settings.PANEL_PASSWORD:
@@ -151,8 +155,10 @@ else:
 
 # ── Módulo de remessas (auth + colaboração) ───────────────────────────────────
 from app.api.routers import auth as _auth_router
+from app.api.routers import remessas as _remessas_router
 
 app.include_router(_auth_router.router)
+app.include_router(_remessas_router.router)
 
 
 @app.get("/health")

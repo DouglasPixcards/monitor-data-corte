@@ -267,7 +267,7 @@ def test_evento_listar_filtra_por_convenio(pg_repos):
 def test_alembic_head_e_a_ultima_revisao():
     # Roda mesmo sem Postgres (não usa a fixture) — guarda de drift da HEAD.
     from app.storage.db import _alembic_head
-    assert _alembic_head() == "0004_usuarios_sessoes"
+    assert _alembic_head() == "0005_remessas"
 
 
 def test_assert_ready_falha_se_schema_nao_migrado(pg_repos):

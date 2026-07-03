@@ -9,12 +9,13 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
+import threading
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.settings import settings
@@ -26,9 +27,18 @@ logger = logging.getLogger(__name__)
 ROLES = ("admin", "operacoes", "conciliacao")
 
 # Throttle de login em memória: após _MAX_FALHAS falhas seguidas, bloqueia por _BLOQUEIO_S.
+# Dict LIMITADO (evita DoS de memória por spray de usernames) e protegido por lock
+# (handlers sync rodam em threadpool).
 _MAX_FALHAS = 5
 _BLOQUEIO_S = 60
-_falhas: dict[str, list] = {}  # username -> [contagem, bloqueado_ate_epoch]
+_MAX_ENTRADAS_THROTTLE = 10_000
+_falhas: dict[str, list] = {}  # username -> [contagem, bloqueado_ate_monotonic]
+_falhas_lock = threading.Lock()
+
+# Hash FIXO para o caminho "usuário desconhecido": ambos os caminhos custam exatamente
+# 1 checkpw — sem oráculo de timing para enumerar usernames (gerar um hash novo por
+# tentativa custaria 2x bcrypt e denunciaria o usuário inexistente).
+_DUMMY_HASH = bcrypt.hashpw(b"dummy-timing", bcrypt.gensalt()).decode("ascii")
 
 
 # ── Senha ─────────────────────────────────────────────────────────────────────
@@ -83,33 +93,44 @@ def autenticar(username: str, senha: str) -> UsuarioRow | None:
     chave = username.strip().lower()
     agora = time.monotonic()
 
-    contagem, bloqueado_ate = _falhas.get(chave, [0, 0.0])
-    if agora < bloqueado_ate:
-        logger.warning("[auth] login bloqueado por throttle: %s", chave)
-        return None
+    with _falhas_lock:
+        contagem, bloqueado_ate = _falhas.get(chave, [0, 0.0])
+        if agora < bloqueado_ate:
+            logger.warning("[auth] login bloqueado por throttle: %s", chave)
+            return None
 
     with session_scope() as session:
         usuario = buscar_por_username(session, chave)
-        # verificação de senha SEMPRE roda (hash dummy quando usuário não existe)
-        # para não vazar existência de username por timing.
-        hash_alvo = usuario.password_hash if usuario else hash_senha("dummy-timing")
+        # verificação de senha SEMPRE roda (hash dummy FIXO quando usuário não existe)
+        # para não vazar existência de username por timing — 1 checkpw nos dois caminhos.
+        hash_alvo = usuario.password_hash if usuario else _DUMMY_HASH
         senha_ok = verificar_senha(senha, hash_alvo)
 
         if usuario is None or not usuario.ativo or not senha_ok:
-            contagem += 1
-            bloqueio = agora + _BLOQUEIO_S if contagem >= _MAX_FALHAS else 0.0
-            _falhas[chave] = [contagem, bloqueio]
+            with _falhas_lock:
+                contagem += 1
+                bloqueio = agora + _BLOQUEIO_S if contagem >= _MAX_FALHAS else 0.0
+                if chave not in _falhas and len(_falhas) >= _MAX_ENTRADAS_THROTTLE:
+                    _falhas.pop(next(iter(_falhas)))  # descarta a entrada mais antiga
+                _falhas[chave] = [contagem, bloqueio]
             return None
 
-    _falhas.pop(chave, None)
+    with _falhas_lock:
+        _falhas.pop(chave, None)
     return usuario
 
 
 def criar_sessao(usuario_id: str) -> str:
     """Cria a sessão e devolve o TOKEN (vai pro cookie; nunca é armazenado)."""
     token = secrets.token_urlsafe(32)
-    expira = datetime.now(timezone.utc) + timedelta(hours=settings.SESSION_TTL_HORAS)
+    agora = datetime.now(timezone.utc)
+    expira = agora + timedelta(hours=settings.SESSION_TTL_HORAS)
     with session_scope() as session:
+        # Higiene: descarta sessões expiradas/revogadas do usuário (tabela não cresce à toa).
+        session.execute(delete(SessaoRow).where(
+            SessaoRow.usuario_id == usuario_id,
+            or_(SessaoRow.expira_em < agora, SessaoRow.revogada_em.is_not(None)),
+        ))
         session.add(SessaoRow(token_hash=_token_hash(token),
                               usuario_id=usuario_id, expira_em=expira))
     return token
@@ -141,9 +162,13 @@ def validar_sessao(token: str | None) -> UsuarioRow | None:
 def revogar_sessao(token: str | None) -> None:
     if not token:
         return
+    try:
+        th = _token_hash(token)
+    except (UnicodeEncodeError, AttributeError):
+        return  # cookie forjado/lixo — nada a revogar (nunca 500)
     agora = datetime.now(timezone.utc)
     with session_scope() as session:
-        sessao = session.get(SessaoRow, _token_hash(token))
+        sessao = session.get(SessaoRow, th)
         if sessao is not None and sessao.revogada_em is None:
             sessao.revogada_em = agora
 
@@ -156,3 +181,13 @@ def revogar_sessoes_do_usuario(session: Session, usuario_id: str) -> None:
                                 SessaoRow.revogada_em.is_(None))
     ).scalars():
         sessao.revogada_em = agora
+
+
+def outros_admins_ativos(session: Session, excluindo_id: str) -> int:
+    """Quantos admins ATIVOS existem além deste — guarda anti-lockout do último admin."""
+    from sqlalchemy import func as _f
+    return session.execute(
+        select(_f.count()).select_from(UsuarioRow).where(
+            UsuarioRow.role == "admin", UsuarioRow.ativo.is_(True),
+            UsuarioRow.id != excluindo_id)
+    ).scalar() or 0
