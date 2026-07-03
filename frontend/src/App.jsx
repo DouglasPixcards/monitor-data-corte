@@ -244,12 +244,26 @@ function Metricas() {
 }
 
 
+// Ordem fixa das abas; visibilidade por papel (Operações só vê Remessas;
+// Conciliação não vê Métricas; sem login = vistas do monitor).
+const VISTAS_LABEL = { board: 'Board', remessas: 'Remessas', calendario: 'Calendário', metricas: 'Métricas' }
+const VISTAS_POR_PAPEL = {
+  admin: ['board', 'remessas', 'calendario', 'metricas'],
+  conciliacao: ['board', 'remessas', 'calendario'],
+  operacoes: ['remessas'],
+}
+
 function Painel({ user, remessasEnabled, onLogout }) {
-  const { dados, erro, loading, updatedAt } = usePolling(REFRESH_MS)
+  const vistas = useMemo(() => {
+    if (!remessasEnabled || !user) return ['board', 'calendario', 'metricas']
+    return VISTAS_POR_PAPEL[user.role] || ['board']
+  }, [user, remessasEnabled])
+  const usaMonitor = vistas.includes('board') || vistas.includes('calendario')
+  const { dados, erro, loading, updatedAt } = usePolling(REFRESH_MS, usaMonitor)
   const [busca, setBusca] = useState('')
   const [proc, setProc] = useState('')
   const [selecionado, setSelecionado] = useState(null)
-  const [vista, setVista] = useState('board')
+  const [vista, setVista] = useState(vistas[0])
 
   // Consolida SOMENTE Teresina numa linha; os demais ficam folha a folha.
   const base = useMemo(() => aplicarAgrupamento(dados), [dados])
@@ -291,13 +305,18 @@ function Painel({ user, remessasEnabled, onLogout }) {
     <div className="app">
       <header className="topo">
         <div className="titulo">
-          <span className="ponto" /> PAINEL DE DATAS DE CORTE
+          <span className="ponto" />
+          <span className="marca">PixCard ·</span> Datas de Corte
         </div>
         <div className="meta">
-          <UserChip user={user} onLogout={onLogout} />
           <Relogio />
-          <span className="sep">·</span>
-          <span>atualizado {updatedAt ? updatedAt.toLocaleTimeString('pt-BR') : '—'}</span>
+          {usaMonitor && (
+            <>
+              <span className="sep">·</span>
+              <span>atualizado {updatedAt ? updatedAt.toLocaleTimeString('pt-BR') : '—'}</span>
+            </>
+          )}
+          <UserChip user={user} onLogout={onLogout} />
         </div>
       </header>
 
@@ -313,14 +332,15 @@ function Painel({ user, remessasEnabled, onLogout }) {
         />
       )}
 
-      <div className="vista-toggle">
-        <button className={vista === 'board' ? 'ativo' : ''} onClick={() => setVista('board')}>Board</button>
-        <button className={vista === 'calendario' ? 'ativo' : ''} onClick={() => setVista('calendario')}>Calendário</button>
-        <button className={vista === 'metricas' ? 'ativo' : ''} onClick={() => setVista('metricas')}>Métricas</button>
-        {remessasEnabled && user && (
-          <button className={vista === 'remessas' ? 'ativo' : ''} onClick={() => setVista('remessas')}>Remessas</button>
-        )}
-      </div>
+      {vistas.length > 1 && (
+        <div className="vista-toggle">
+          {vistas.map((v) => (
+            <button key={v} className={vista === v ? 'ativo' : ''} onClick={() => setVista(v)}>
+              {VISTAS_LABEL[v]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading && vista !== 'metricas' && vista !== 'remessas' && <div className="estado">Carregando dados...</div>}
       {erro && !loading && vista !== 'metricas' && vista !== 'remessas' && (

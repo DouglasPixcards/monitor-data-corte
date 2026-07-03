@@ -175,10 +175,11 @@ export function aplicarAgrupamento(dados) {
 }
 
 // Hook: busca os dados a cada `intervaloMs` e expõe estado de carregamento/erro.
-export function usePolling(intervaloMs = 60000) {
+// `ativo=false` desliga o polling (ex.: Operações, que não vê as vistas do monitor).
+export function usePolling(intervaloMs = 60000, ativo = true) {
   const [dados, setDados] = useState([])
   const [erro, setErro] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(ativo)
   const [updatedAt, setUpdatedAt] = useState(null)
   const timer = useRef(null)
 
@@ -196,10 +197,11 @@ export function usePolling(intervaloMs = 60000) {
   }, [])
 
   useEffect(() => {
+    if (!ativo) return undefined
     carregar()
     timer.current = setInterval(carregar, intervaloMs)
     return () => clearInterval(timer.current)
-  }, [carregar, intervaloMs])
+  }, [carregar, intervaloMs, ativo])
 
   return { dados, erro, loading, updatedAt, recarregar: carregar }
 }

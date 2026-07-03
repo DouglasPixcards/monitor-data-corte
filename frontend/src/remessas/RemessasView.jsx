@@ -8,7 +8,21 @@ import AdminPanel from './AdminPanel.jsx'
 
 const STATUS_LABEL = { automatico: 'automático', pendente: 'pendente', enviado: 'enviado' }
 
-// ── Botão copiar (cod_empr) ───────────────────────────────────────────────────
+// ── Botão copiar (SVG) ────────────────────────────────────────────────────────
+const IconeCopiar = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="13" height="13" rx="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+)
+const IconeOk = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+)
+
 export function CopyButton({ valor }) {
   const [ok, setOk] = useState(false)
   const copiar = async (e) => {
@@ -27,14 +41,14 @@ export function CopyButton({ valor }) {
     setTimeout(() => setOk(false), 1500)
   }
   return (
-    <button className="copy-btn" onClick={copiar} title="Copiar código do empregador">
-      {ok ? '✓' : '📋'}
+    <button className={`copy-btn ${ok ? 'ok' : ''}`} onClick={copiar}
+            title={ok ? 'Copiado!' : 'Copiar código do empregador'}>
+      {ok ? <IconeOk /> : <IconeCopiar />}
     </button>
   )
 }
 
 // ── Células editáveis ─────────────────────────────────────────────────────────
-// Padrão: exibe o valor; clique → input; Enter/blur salva (PATCH), Esc cancela.
 function CellEdit({ valor, exibicao, tipo = 'text', podeEditar, onSalvar, placeholder = '—' }) {
   const [editando, setEditando] = useState(false)
   const [rascunho, setRascunho] = useState('')
@@ -68,12 +82,13 @@ function CellEdit({ valor, exibicao, tipo = 'text', podeEditar, onSalvar, placeh
       />
     )
   }
+  const vazio = exibicao == null || exibicao === ''
   return (
     <span
-      className={`cel ${podeEditar ? 'editavel' : ''} ${salvando ? 'salvando' : ''}`}
+      className={`cel ${podeEditar ? 'editavel' : ''} ${vazio ? 'vazia' : ''} ${salvando ? 'salvando' : ''}`}
       onClick={abrir} title={podeEditar ? 'Clique para editar' : undefined}
     >
-      {exibicao ?? placeholder}
+      {vazio ? placeholder : exibicao}
     </span>
   )
 }
@@ -87,40 +102,38 @@ function CellCheck({ valor, podeEditar, onSalvar }) {
   }
   return (
     <span className={`cel-check ${valor ? 'sim' : ''} ${podeEditar ? 'editavel' : ''}`}
-          onClick={toggle}>
+          onClick={toggle} title={podeEditar ? 'Marcar/desmarcar validado' : undefined}>
       {valor ? '✓' : '—'}
     </span>
   )
 }
 
-// Corte banksoft: sugestão fantasma (data_site − 7d) com aceite em 1 clique.
+// Corte banksoft: SEMPRE editável pra quem pode escrever (digita a própria data);
+// a sugestão (data_site − 7d) é um chip de aceite rápido AO LADO — nunca bloqueia.
 function BanksoftCell({ ciclo, podeEditar, salvarCampo }) {
-  if (!ciclo.corte_banksoft && ciclo.sugestao_corte_banksoft && podeEditar) {
-    return (
-      <span className="cel banksoft-sugestao">
-        <em>{fmtDataISO(ciclo.sugestao_corte_banksoft)}?</em>
-        <button
-          className="aceitar"
-          title="Aceitar a sugestão (data site − 7 dias)"
-          onClick={() => salvarCampo('corte_banksoft', ciclo.sugestao_corte_banksoft)}
-        >aceitar</button>
-      </span>
-    )
-  }
   return (
-    <CellEdit
-      valor={ciclo.corte_banksoft} exibicao={fmtDataISO(ciclo.corte_banksoft)} tipo="date"
-      podeEditar={podeEditar} onSalvar={(v) => salvarCampo('corte_banksoft', v)}
-    />
+    <span className="banksoft">
+      <CellEdit
+        valor={ciclo.corte_banksoft} exibicao={fmtDataISO(ciclo.corte_banksoft)} tipo="date"
+        podeEditar={podeEditar} onSalvar={(v) => salvarCampo('corte_banksoft', v)}
+        placeholder={podeEditar ? 'definir' : '—'}
+      />
+      {!ciclo.corte_banksoft && ciclo.sugestao_corte_banksoft && podeEditar && (
+        <button className="chip-acao"
+                title="Aceitar a sugestão (data site − 7 dias)"
+                onClick={() => salvarCampo('corte_banksoft', ciclo.sugestao_corte_banksoft)}>
+          {fmtDataISO(ciclo.sugestao_corte_banksoft)} ✓
+        </button>
+      )}
+    </span>
   )
 }
 
-// data_site: monitorado = leitura (com vermelho quando mudou); não-monitorado = input manual.
+// data_site: monitorado = leitura (vermelho quando mudou); não-monitorado = input manual.
 function DataSiteCell({ ciclo, role, salvarCampo, onReload, onErro }) {
   const [ocupado, setOcupado] = useState(false)
   const monitorado = !!ciclo.registro.monitor_key || role === 'operacoes'
   const podeCiente = role !== 'operacoes'
-  const cls = ciclo.data_site_alterada ? 'alterada' : ''
 
   const informar = async () => {
     const dataBR = prompt('Data de corte vista no portal (DD/MM/AAAA):')
@@ -150,8 +163,8 @@ function DataSiteCell({ ciclo, role, salvarCampo, onReload, onErro }) {
         </em>
         {role !== 'operacoes' && !ocupado && (
           <>
-            <button className="aceitar" onClick={informar} title="Vi a data no portal — informar manualmente">informar</button>
-            <button className="aceitar" onClick={coletar} title="Rodar o scraper agora">coletar</button>
+            <button className="chip-acao" onClick={informar} title="Vi a data no portal — informar manualmente">informar</button>
+            <button className="chip-acao" onClick={coletar} title="Rodar o scraper agora">coletar</button>
           </>
         )}
       </span>
@@ -159,19 +172,19 @@ function DataSiteCell({ ciclo, role, salvarCampo, onReload, onErro }) {
   }
   if (monitorado) {
     return (
-      <span className={`cel ${cls}`}
+      <span className={ciclo.data_site_alterada ? 'alterada' : ''}
             title={ciclo.data_site_alterada && ciclo.data_site_anterior
               ? `Mudou! Era ${fmtDataISO(ciclo.data_site_anterior)}` : undefined}>
         {fmtDataISO(ciclo.data_site) ?? '—'}
         {ciclo.data_site_alterada && podeCiente && (
-          <button className="aceitar" title="Marcar como ciente da mudança"
+          <button className="chip-acao" title="Marcar como ciente da mudança"
                   onClick={() => salvarCampo('data_site_alterada', false)}>ciente</button>
         )}
       </span>
     )
   }
   return (
-    <span className={cls} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       {ciclo.registro.link_portal && (
         <a className="link-portal" href={ciclo.registro.link_portal} target="_blank"
            rel="noreferrer" title="Abrir o portal do convênio" onClick={(e) => e.stopPropagation()}>🔗</a>
@@ -189,7 +202,54 @@ function DivergenciaIcone({ ativo, titulo }) {
   return <em className="diverg" title={titulo}>⚠️</em>
 }
 
-// ── Linha do grid ─────────────────────────────────────────────────────────────
+// Observação: truncada na célula; clique abre um editor confortável (textarea).
+function ObsCell({ valor, podeEditar, onSalvar }) {
+  const [aberto, setAberto] = useState(false)
+  const [rascunho, setRascunho] = useState('')
+  const [salvando, setSalvando] = useState(false)
+
+  const abrir = () => {
+    if (!podeEditar) return
+    setRascunho(valor ?? '')
+    setAberto(true)
+  }
+  const salvar = async () => {
+    setSalvando(true)
+    try {
+      await onSalvar(rascunho.trim() === '' ? null : rascunho.trim())
+      setAberto(false)
+    } finally { setSalvando(false) }
+  }
+  return (
+    <>
+      <span className={`cel ${podeEditar ? 'editavel' : ''} ${!valor ? 'vazia' : ''}`}
+            onClick={abrir} title={valor || (podeEditar ? 'Clique para anotar' : undefined)}>
+        {valor || (podeEditar ? 'anotar' : '—')}
+      </span>
+      {aberto && (
+        <div className="modal-overlay" onClick={() => setAberto(false)}>
+          <div className="modal obs-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="modal-head">
+              <b>Observação</b>
+              <button className="fechar" onClick={() => setAberto(false)} aria-label="Fechar">×</button>
+            </header>
+            <textarea autoFocus value={rascunho} maxLength={2000}
+                      placeholder="Anotações sobre esta remessa..."
+                      onChange={(e) => setRascunho(e.target.value)} />
+            <div className="obs-acoes">
+              <button className="acao" onClick={() => setAberto(false)}>Cancelar</button>
+              <button className="btn-primario" onClick={salvar} disabled={salvando}>
+                {salvando ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Linhas da tabela ──────────────────────────────────────────────────────────
 function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro, onReload }) {
   const salvarCampo = useCallback(async (campo, valor) => {
     try {
@@ -202,75 +262,88 @@ function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro, onReload }) 
 
   const escreveConc = role === 'conciliacao' || role === 'admin'
   const escreveOper = role === 'operacoes' || role === 'admin'
+  const ehAdmin = role === 'admin'
   const produtos = ciclo.registro.produtos || {}
+
+  const codCell = (
+    <td>
+      <span className="rem-cod">{ciclo.registro.cod_empr}<CopyButton valor={ciclo.registro.cod_empr} /></span>
+    </td>
+  )
+  const nomeCell = (
+    <td>
+      <span className={`rem-nome ${ehAdmin ? 'clicavel' : ''}`}
+            onClick={ehAdmin ? () => onAbrirAuditoria(ciclo) : undefined}
+            title={ehAdmin ? 'Ver histórico de alterações (auditoria)' : undefined}>
+        {ciclo.registro.nome}
+      </span>
+    </td>
+  )
 
   if (role === 'operacoes') {
     return (
-      <div className="rem-row oper">
-        <span className="cod"><b>{ciclo.registro.cod_empr}</b><CopyButton valor={ciclo.registro.cod_empr} /></span>
-        <span className="nome">{ciclo.registro.nome}</span>
-        <span><DataSiteCell ciclo={ciclo} role={role} salvarCampo={salvarCampo} onReload={onReload} onErro={onErro} /></span>
-        <span><BanksoftCell ciclo={ciclo} podeEditar={escreveOper} salvarCampo={salvarCampo} /></span>
-      </div>
+      <tr>
+        {codCell}
+        {nomeCell}
+        <td><DataSiteCell ciclo={ciclo} role={role} salvarCampo={salvarCampo} onReload={onReload} onErro={onErro} /></td>
+        <td><BanksoftCell ciclo={ciclo} podeEditar={escreveOper} salvarCampo={salvarCampo} /></td>
+      </tr>
     )
   }
 
-  const prodCell = (habilitado, valorCampo, qtdCampo) => (
+  const prodCells = (habilitado, valorCampo, qtdCampo) => (
     habilitado ? (
       <>
-        <span className="num">
+        <td className="num">
           <CellEdit valor={ciclo[valorCampo]} exibicao={fmtMoney(ciclo[valorCampo])} tipo="number"
                     podeEditar={escreveConc} onSalvar={(v) => salvarCampo(valorCampo, v)} />
-        </span>
-        <span className="num">
+        </td>
+        <td className="num">
           <CellEdit valor={ciclo[qtdCampo]} exibicao={ciclo[qtdCampo]} tipo="number"
                     podeEditar={escreveConc} onSalvar={(v) => salvarCampo(qtdCampo, v == null ? null : Number(v))} />
-        </span>
+        </td>
       </>
-    ) : (<><span className="num na">·</span><span className="num na">·</span></>)
+    ) : (<><td className="na">·</td><td className="na">·</td></>)
   )
 
   return (
-    <div className="rem-row">
-      <span className="cod"><b>{ciclo.registro.cod_empr}</b><CopyButton valor={ciclo.registro.cod_empr} /></span>
-      <span className="nome" onClick={() => onAbrirAuditoria(ciclo)} title="Ver histórico de alterações">
-        {ciclo.registro.nome}
-      </span>
-      <span><DataSiteCell ciclo={ciclo} role={role} salvarCampo={salvarCampo} onReload={onReload} onErro={onErro} /></span>
-      <span>
+    <tr>
+      {codCell}
+      {nomeCell}
+      <td><DataSiteCell ciclo={ciclo} role={role} salvarCampo={salvarCampo} onReload={onReload} onErro={onErro} /></td>
+      <td>
         <CellEdit valor={ciclo.data_envio} exibicao={fmtDataISO(ciclo.data_envio)} tipo="date"
                   podeEditar={escreveConc} onSalvar={(v) => salvarCampo('data_envio', v)} />
-      </span>
-      <span className="num">
+      </td>
+      <td className="num">
         <CellEdit valor={ciclo.valor_enviado} exibicao={fmtMoney(ciclo.valor_enviado)} tipo="number"
                   podeEditar={escreveConc} onSalvar={(v) => salvarCampo('valor_enviado', v)} />
         <DivergenciaIcone ativo={ciclo.divergencia?.valor}
                           titulo="Valor enviado ≠ soma dos produtos preenchidos" />
-      </span>
-      <span className="num">
+      </td>
+      <td className="num">
         <CellEdit valor={ciclo.qtd_contratos} exibicao={ciclo.qtd_contratos} tipo="number"
                   podeEditar={escreveConc}
                   onSalvar={(v) => salvarCampo('qtd_contratos', v == null ? null : Number(v))} />
         <DivergenciaIcone ativo={ciclo.divergencia?.qtd}
                           titulo="Qtd de contratos ≠ soma das qtds dos produtos" />
-      </span>
-      <span><em className={`tag st-${ciclo.status}`}>{STATUS_LABEL[ciclo.status] || ciclo.status}</em></span>
-      {prodCell(produtos.credito, 'credito_valor', 'credito_qtd')}
-      {prodCell(produtos.beneficio, 'beneficio_valor', 'beneficio_qtd')}
-      {prodCell(produtos.compras, 'compras_valor', 'compras_qtd')}
-      <span><BanksoftCell ciclo={ciclo} podeEditar={role === 'admin'} salvarCampo={salvarCampo} /></span>
-      <span><CellCheck valor={ciclo.validado} podeEditar={escreveConc}
-                       onSalvar={(v) => salvarCampo('validado', v)} /></span>
-      <span className="obs">
-        <CellEdit valor={ciclo.observacao} exibicao={ciclo.observacao}
-                  podeEditar={escreveConc} onSalvar={(v) => salvarCampo('observacao', v)}
-                  placeholder="" />
-      </span>
-    </div>
+      </td>
+      <td><em className={`tag st-${ciclo.status}`}>{STATUS_LABEL[ciclo.status] || ciclo.status}</em></td>
+      {prodCells(produtos.credito, 'credito_valor', 'credito_qtd')}
+      {prodCells(produtos.beneficio, 'beneficio_valor', 'beneficio_qtd')}
+      {prodCells(produtos.compras, 'compras_valor', 'compras_qtd')}
+      <td><BanksoftCell ciclo={ciclo} podeEditar={ehAdmin} salvarCampo={salvarCampo} /></td>
+      <td><CellCheck valor={ciclo.validado} podeEditar={escreveConc}
+                     onSalvar={(v) => salvarCampo('validado', v)} /></td>
+      <td className="obs">
+        <ObsCell valor={ciclo.observacao} podeEditar={escreveConc}
+                 onSalvar={(v) => salvarCampo('observacao', v)} />
+      </td>
+    </tr>
   )
 }
 
-// ── Modal de auditoria ────────────────────────────────────────────────────────
+// ── Modal de auditoria (só admin chega aqui) ──────────────────────────────────
 function AuditoriaModal({ ciclo, onFechar }) {
   const [linhas, setLinhas] = useState(null)
   useEffect(() => {
@@ -311,10 +384,18 @@ function AuditoriaModal({ ciclo, onFechar }) {
 }
 
 // ── Vista principal ───────────────────────────────────────────────────────────
+const CABECALHO_FULL = [
+  ['Cod'], ['Convênio'], ['Data site'], ['Data envio'],
+  ['Valor enviado', 'num'], ['Qtd', 'num'], ['Status'],
+  ['Crédito R$', 'num'], ['Qtd', 'num'], ['Benefício R$', 'num'], ['Qtd', 'num'],
+  ['Compras R$', 'num'], ['Qtd', 'num'], ['Corte banksoft'], ['Val.'], ['Observação'],
+]
+const CABECALHO_OPER = [['Cod'], ['Convênio'], ['Data site'], ['Corte banksoft']]
+
 export default function RemessasView() {
   const user = useUser()
   const role = user?.role
-  const [competencia, setCompetencia] = useState(null)   // null = corrente (server decide)
+  const [competencia, setCompetencia] = useState(null)
   const [competencias, setCompetencias] = useState([])
   const [ciclos, setCiclos] = useState(null)
   const [busca, setBusca] = useState('')
@@ -346,6 +427,11 @@ export default function RemessasView() {
     carregar(comp)
   }
 
+  const mostrarErro = (msg) => {
+    setErro(msg)
+    setTimeout(() => setErro(null), 6000)
+  }
+
   const abrirNova = async () => {
     const comp = prompt('Abrir competência (MM/YYYY):')
     if (!comp) return
@@ -353,11 +439,6 @@ export default function RemessasView() {
       await abrirCompetencia(comp.trim())
       trocarCompetencia(comp.trim())
     } catch (e) { mostrarErro(e.message) }
-  }
-
-  const mostrarErro = (msg) => {
-    setErro(msg)
-    setTimeout(() => setErro(null), 6000)
   }
 
   const onPatch = useCallback((atualizado) => {
@@ -374,6 +455,7 @@ export default function RemessasView() {
 
   const compAtual = competencia || (ciclos && ciclos[0]?.competencia) || ''
   const oper = role === 'operacoes'
+  const cabecalho = oper ? CABECALHO_OPER : CABECALHO_FULL
 
   return (
     <div className="remessas">
@@ -414,7 +496,7 @@ export default function RemessasView() {
         )}
       </div>
 
-      {metricas && role !== 'operacoes' && (
+      {metricas && !oper && (
         <div className="rem-metricas">
           <span><b>{metricas.por_status.enviado}</b> enviados</span>
           <span className="pend"><b>{metricas.por_status.pendente}</b> pendentes</span>
@@ -439,26 +521,22 @@ export default function RemessasView() {
       {ciclos && filtrados.length === 0 && <div className="vazio">Nenhum convênio nesta competência.</div>}
       {ciclos && filtrados.length > 0 && (
         <div className="rem-wrap">
-          <div className={`rem-grid ${oper ? 'oper' : ''}`}>
-            {oper ? (
-              <div className="rem-head oper">
-                <span>Cod</span><span>Convênio</span><span>Data site</span><span>Corte banksoft</span>
-              </div>
-            ) : (
-              <div className="rem-head">
-                <span>Cod</span><span>Convênio</span><span>Data site</span><span>Data envio</span>
-                <span>Valor enviado</span><span>Qtd</span><span>Status</span>
-                <span>Crédito R$</span><span>Qtd</span><span>Benefício R$</span><span>Qtd</span>
-                <span>Compras R$</span><span>Qtd</span><span>Corte banksoft</span>
-                <span>Val.</span><span>Observação</span>
-              </div>
-            )}
-            {filtrados.map((c) => (
-              <CicloRow key={c.id} ciclo={c} role={role} onPatch={onPatch}
-                        onAbrirAuditoria={setAuditoriaDe} onErro={mostrarErro}
-                        onReload={() => carregar(compAtual)} />
-            ))}
-          </div>
+          <table className="rem-table">
+            <thead>
+              <tr>
+                {cabecalho.map(([rotulo, cls], i) => (
+                  <th key={i} className={cls || ''}>{rotulo}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtrados.map((c) => (
+                <CicloRow key={c.id} ciclo={c} role={role} onPatch={onPatch}
+                          onAbrirAuditoria={setAuditoriaDe} onErro={mostrarErro}
+                          onReload={() => carregar(compAtual)} />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
