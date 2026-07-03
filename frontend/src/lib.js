@@ -1,5 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+// Helper compartilhado: fetch same-origin com JSON + erros legíveis. Mutações levam o
+// header X-Requested-With (exigido pelo backend como defesa anti-CSRF).
+export async function api(path, { method = 'GET', body } = {}) {
+  const opts = { method, headers: { Accept: 'application/json' } }
+  if (method !== 'GET') opts.headers['X-Requested-With'] = 'fetch'
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json'
+    opts.body = JSON.stringify(body)
+  }
+  const res = await fetch(path, opts)
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try {
+      const j = await res.json()
+      if (j.detail) detail = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail)
+      if (j.campos_negados) detail += ` (campos: ${j.campos_negados.join(', ')})`
+    } catch { /* corpo não-JSON — mantém o HTTP status */ }
+    const err = new Error(detail)
+    err.status = res.status
+    throw err
+  }
+  return res.status === 204 ? null : res.json()
+}
+
+// Sessão (módulo de remessas)
+export const fetchMe = () => api('/auth/me')
+export const login = (username, password) => api('/auth/login', { method: 'POST', body: { username, password } })
+export const logout = () => api('/auth/logout', { method: 'POST' })
+
 // Busca os dados de corte atuais na API do Monitor (mesma origem quando servido em /painel).
 export async function fetchCortes() {
   const res = await fetch('/cortes/atuais', { headers: { Accept: 'application/json' } })

@@ -9,6 +9,24 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import datetime, timezone
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.enums import EventoTipo
+from app.core.loader import load_processadoras_config
+from app.core.models import DadoCorte, Execucao
+from app.services.confianca import JANELA_DIAS, classificar_confianca, mudou_dia_corte
+from app.services import metricas
+from app.core.settings import settings
+from app.services.notification.smtp import EmailSMTPNotificador
+from app.services.orchestrator_factory import build_orchestrator, build_repositories
+from app.services.scheduler import SchedulerService
+from app.utils.dates import derivar_competencia, normalizar_data_corte
+
+
 logging.config.dictConfig({
     "version": 1,
     "disable_existing_loggers": False,
@@ -27,35 +45,20 @@ logging.config.dictConfig({
     "root": {"level": "INFO", "handlers": ["console"]},
 })
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional
-
-from fastapi import FastAPI, HTTPException, Query, Response
-from fastapi.middleware.cors import CORSMiddleware
-
-from app.core.enums import EventoTipo
-from app.core.loader import load_processadoras_config
-from app.core.models import DadoCorte, Execucao
-from app.services.confianca import JANELA_DIAS, classificar_confianca, mudou_dia_corte
-from app.services import metricas
-from app.core.settings import settings
-from app.services.notification.smtp import EmailSMTPNotificador
-from app.services.orchestrator_factory import build_orchestrator, build_repositories
-from app.services.scheduler import SchedulerService
-from app.utils.dates import derivar_competencia, normalizar_data_corte
 
 logger = logging.getLogger(__name__)
-
-# logger.basicConfig(
-#     level=logging.INFO,
-#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-# )
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not settings.SMTP_HOST:
         logger.warning("SMTP_HOST não configurado — notificações por e-mail desabilitadas")
+    if settings.REMESSAS_ENABLED:
+        # Falha ALTO no boot se as migrations não estão na head (módulo transacional).
+        from app.storage import db as _db
+        _db.assert_ready()
+        logger.info("Módulo de remessas HABILITADO (Postgres na head)")
+    else:
+        logger.info("Módulo de remessas desabilitado (STORAGE_BACKEND != postgres)")
     if settings.PANEL_PASSWORD:
         logger.info("Auth do painel/API HABILITADA (HTTP Basic, usuário '%s')", settings.PANEL_USER)
     else:
@@ -82,6 +85,28 @@ app.add_middleware(
 
 # ── Auth básica (opt-in: ativa só quando PANEL_PASSWORD está setada) ───────────
 _AUTH_EXEMPT = {"/health"}  # uptime / dead-man's switch pinga sem credencial
+# /auth/*: login é público e o resto valida a própria sessão (evita o dialog Basic
+# do navegador na tela de login). /painel: só os estáticos — os DADOS continuam gated.
+_AUTH_EXEMPT_PREFIXES = ("/auth", "/painel")
+
+
+def _rota_isenta(path: str) -> bool:
+    return path in _AUTH_EXEMPT or any(
+        path == p or path.startswith(p + "/") for p in _AUTH_EXEMPT_PREFIXES
+    )
+
+
+def _sessao_valida(request) -> bool:
+    """Cookie de sessão do módulo de remessas vale como alternativa ao Basic
+    (humanos logados navegam os endpoints do monitor sem credencial de máquina)."""
+    if not settings.REMESSAS_ENABLED:
+        return False
+    try:
+        from app.services import auth_service
+        return auth_service.validar_sessao(request.cookies.get("sessao")) is not None
+    except Exception:  # noqa: BLE001 — middleware nunca pode derrubar a request
+        logger.exception("[auth] falha ao validar sessão no middleware")
+        return False
 
 
 def _credenciais_ok(auth_header: str | None) -> bool:
@@ -102,8 +127,9 @@ def _credenciais_ok(auth_header: str | None) -> bool:
 async def _auth_basica(request, call_next):
     if (settings.PANEL_PASSWORD
             and request.method != "OPTIONS"
-            and request.url.path not in _AUTH_EXEMPT
-            and not _credenciais_ok(request.headers.get("Authorization"))):
+            and not _rota_isenta(request.url.path)
+            and not _credenciais_ok(request.headers.get("Authorization"))
+            and not _sessao_valida(request)):
         return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Monitor de Cortes"'})
     return await call_next(request)
 
@@ -121,6 +147,12 @@ if _PAINEL_DIST.is_dir():
     logger.info("Painel estático montado em /painel (%s)", _PAINEL_DIST)
 else:
     logger.info("frontend/dist não encontrado — /painel desabilitado (rode 'npm run build').")
+
+
+# ── Módulo de remessas (auth + colaboração) ───────────────────────────────────
+from app.api.routers import auth as _auth_router
+
+app.include_router(_auth_router.router)
 
 
 @app.get("/health")

@@ -11,6 +11,10 @@ SQLAlchemy>=2.0
 alembic
 psycopg[binary]>=3.1
 
+# Módulo de remessas (auth + export)
+bcrypt>=4.1
+openpyxl>=3.1
+
 # Testes
 pytest
 httpx==0.28.1            # exigido pelo TestClient do FastAPI (starlette.testclient) no CI

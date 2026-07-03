@@ -14,6 +14,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/cortes': 'http://localhost:8000',
+      '/convenios': 'http://localhost:8000',
+      '/coletas': 'http://localhost:8000',
+      '/metricas': 'http://localhost:8000',
+      '/auth': 'http://localhost:8000',
+      '/remessas': 'http://localhost:8000',
     },
   },
 })

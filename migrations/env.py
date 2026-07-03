@@ -8,6 +8,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.settings import settings
 from app.storage.sql_models import Base
+import app.storage.remessas_models  # noqa: F401 — registra as tabelas do módulo de remessas no metadata
 
 config = context.config
 

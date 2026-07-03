@@ -57,5 +57,16 @@ class Settings:
     # com severidade ao fim de cada coleta. Vazio = desabilitado.
     ALERT_WEBHOOK_URL: str = os.getenv("ALERT_WEBHOOK_URL", "")
 
+    # ── Módulo de remessas (multiusuário) ─────────────────────────────────────
+    # Sessões de login: validade em horas (default 7 dias).
+    SESSION_TTL_HORAS: int = int(os.getenv("SESSION_TTL_HORAS", "168"))
+    # Cookie Secure (exige HTTPS) — ligar em produção atrás de TLS.
+    COOKIE_SECURE: bool = _bool(os.getenv("COOKIE_SECURE"), False)
+
+    @property
+    def REMESSAS_ENABLED(self) -> bool:
+        """Remessas é Postgres-only (CRUD multiusuário + auditoria transacional)."""
+        return self.STORAGE_BACKEND.strip().lower() == "postgres"
+
 
 settings = Settings()

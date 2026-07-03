@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePolling, statusCorte, fmtAtualizado, aplicarAgrupamento, fetchHistorico, cortesPorDia, fetchMetricas } from './lib.js'
+import { Login, UserChip, UserContext, useSession } from './auth.jsx'
 
 const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
@@ -242,7 +243,7 @@ function Metricas() {
 }
 
 
-export default function App() {
+function Painel({ user, remessasEnabled, onLogout }) {
   const { dados, erro, loading, updatedAt } = usePolling(REFRESH_MS)
   const [busca, setBusca] = useState('')
   const [proc, setProc] = useState('')
@@ -292,6 +293,7 @@ export default function App() {
           <span className="ponto" /> PAINEL DE DATAS DE CORTE
         </div>
         <div className="meta">
+          <UserChip user={user} onLogout={onLogout} />
           <Relogio />
           <span className="sep">·</span>
           <span>atualizado {updatedAt ? updatedAt.toLocaleTimeString('pt-BR') : '—'}</span>
@@ -328,5 +330,21 @@ export default function App() {
         Atualização automática a cada {REFRESH_MS / 1000}s · Monitor de Datas de Corte
       </footer>
     </div>
+  )
+}
+
+
+export default function App() {
+  const sessao = useSession()
+  if (sessao.carregando) {
+    return <div className="app"><div className="estado">Carregando...</div></div>
+  }
+  if (sessao.precisaLogin) {
+    return <Login onOk={sessao.recarregar} />
+  }
+  return (
+    <UserContext.Provider value={sessao.user}>
+      <Painel user={sessao.user} remessasEnabled={sessao.remessasEnabled} onLogout={sessao.sair} />
+    </UserContext.Provider>
   )
 }
