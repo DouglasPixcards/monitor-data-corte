@@ -192,3 +192,69 @@ def sync(competencia: str | None = Query(default=None),
         return sincronizar_data_site(competencia)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+
+# ── Export .xlsx ──────────────────────────────────────────────────────────────
+
+def _pares_da_competencia(session, comp: str):
+    from sqlalchemy import select
+
+    from app.storage.remessas_models import CicloRemessaRow, ConvenioRegistroRow
+    return session.execute(
+        select(CicloRemessaRow, ConvenioRegistroRow)
+        .join(ConvenioRegistroRow, ConvenioRegistroRow.id == CicloRemessaRow.registro_id)
+        .where(CicloRemessaRow.competencia == comp)
+        .order_by(ConvenioRegistroRow.nome)
+    ).all()
+
+
+@router.get("/export")
+def exportar(competencia: str | None = Query(default=None),
+             _u: UsuarioRow = Depends(require_roles("admin", "conciliacao"))):
+    from fastapi import Response
+
+    from app.services.remessas_export import gerar_xlsx
+    try:
+        comp, _ = svc.parse_competencia(competencia or svc.competencia_corrente())
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    with session_scope() as session:
+        conteudo = gerar_xlsx(_pares_da_competencia(session, comp), comp)
+    nome = f"remessas-{comp.replace('/', '-')}.xlsx"
+    return Response(
+        content=conteudo,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )
+
+
+# ── Métricas do ciclo (lead time de envio etc.) ───────────────────────────────
+
+@router.get("/metricas")
+def metricas(competencia: str | None = Query(default=None),
+             _u: UsuarioRow = Depends(usuario_atual)) -> dict:
+    try:
+        comp, _ = svc.parse_competencia(competencia or svc.competencia_corrente())
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    with session_scope() as session:
+        pares = _pares_da_competencia(session, comp)
+        por_status = {"pendente": 0, "enviado": 0, "automatico": 0}
+        validados = banksoft_pendentes = 0
+        lead_times: list[int] = []
+        for ciclo, registro in pares:
+            por_status[svc.status_ciclo(registro, ciclo)] += 1
+            if ciclo.validado:
+                validados += 1
+            if ciclo.corte_banksoft is None:
+                banksoft_pendentes += 1
+            if ciclo.data_envio and ciclo.data_site:
+                # antecedência POSITIVA = enviou antes da data limite do site
+                lead_times.append((ciclo.data_site - ciclo.data_envio).days)
+        media = round(sum(lead_times) / len(lead_times), 1) if lead_times else None
+        return {
+            "competencia": comp, "total": len(pares), "por_status": por_status,
+            "validados": validados, "banksoft_pendentes": banksoft_pendentes,
+            "lead_time_envio_medio_dias": media,
+            "envios_apos_data_site": sum(1 for lt in lead_times if lt < 0),
+        }

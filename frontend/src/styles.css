@@ -320,3 +320,13 @@ body {
 .admin-item:last-child { border-bottom: none; }
 .admin-item.inativo { opacity: .45; }
 .admin-item .produtos { color: var(--muted); font-size: 12px; margin-left: auto; }
+.acao[href] { text-decoration: none; display: inline-flex; align-items: center; }
+
+.rem-metricas {
+  display: flex; gap: 18px; flex-wrap: wrap; padding: 9px 14px; margin-bottom: 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+  color: var(--muted); font-size: 13px;
+}
+.rem-metricas b { color: var(--ink); }
+.rem-metricas .pend b { color: var(--amber); }
+.rem-metricas .atraso, .rem-metricas .atraso b { color: var(--red); }

@@ -49,6 +49,8 @@ export const syncRemessas = (competencia) =>
   api(`/remessas/sync${competencia ? `?competencia=${encodeURIComponent(competencia)}` : ''}`, { method: 'POST' })
 export const informarDataCorte = (monitorKey, dataBR) =>
   api(`/convenios/${encodeURIComponent(monitorKey)}/data_corte`, { method: 'POST', body: { data_corte: dataBR } })
+export const fetchRemessasMetricas = (competencia) =>
+  api(`/remessas/metricas${competencia ? `?competencia=${encodeURIComponent(competencia)}` : ''}`)
 
 // Formatação pt-BR
 export const fmtDataISO = (iso) => {

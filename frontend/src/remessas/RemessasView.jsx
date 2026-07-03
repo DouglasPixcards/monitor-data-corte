@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   abrirCompetencia, executarColeta, fetchAuditoria, fetchCiclos, fetchCompetencias,
-  fmtDataISO, fmtMoney, informarDataCorte, patchCiclo, syncRemessas,
+  fetchRemessasMetricas, fmtDataISO, fmtMoney, informarDataCorte, patchCiclo, syncRemessas,
 } from '../lib.js'
 import { useUser } from '../auth.jsx'
 import AdminPanel from './AdminPanel.jsx'
@@ -321,6 +321,7 @@ export default function RemessasView() {
   const [erro, setErro] = useState(null)
   const [auditoriaDe, setAuditoriaDe] = useState(null)
   const [mostrarAdmin, setMostrarAdmin] = useState(false)
+  const [metricas, setMetricas] = useState(null)
 
   const carregar = useCallback(async (comp) => {
     setErro(null)
@@ -329,6 +330,8 @@ export default function RemessasView() {
       setCiclos(cs)
       setCompetencias(comps)
       if (!comp && cs.length) setCompetencia(cs[0].competencia)
+      fetchRemessasMetricas(comp || (cs[0] && cs[0].competencia))
+        .then(setMetricas).catch(() => setMetricas(null))
     } catch (e) {
       setErro(e.message)
       setCiclos([])
@@ -397,6 +400,10 @@ export default function RemessasView() {
             } catch (e) { mostrarErro(e.message) }
           }} title="Puxar as datas do monitor agora">↻ Sync</button>
         )}
+        {(role === 'admin' || role === 'conciliacao') && compAtual && (
+          <a className="acao" href={`/remessas/export?competencia=${encodeURIComponent(compAtual)}`}
+             title="Baixar a planilha da competência">⬇ Excel</a>
+        )}
         {role === 'admin' && (
           <>
             <button className="acao" onClick={abrirNova}>Abrir competência</button>
@@ -406,6 +413,24 @@ export default function RemessasView() {
           </>
         )}
       </div>
+
+      {metricas && role !== 'operacoes' && (
+        <div className="rem-metricas">
+          <span><b>{metricas.por_status.enviado}</b> enviados</span>
+          <span className="pend"><b>{metricas.por_status.pendente}</b> pendentes</span>
+          <span><b>{metricas.por_status.automatico}</b> automáticos</span>
+          <span><b>{metricas.validados}</b> validados</span>
+          <span><b>{metricas.banksoft_pendentes}</b> sem corte banksoft</span>
+          {metricas.lead_time_envio_medio_dias != null && (
+            <span title="Média de dias entre o envio e a data limite do site">
+              antecedência média <b>{metricas.lead_time_envio_medio_dias}d</b>
+            </span>
+          )}
+          {metricas.envios_apos_data_site > 0 && (
+            <span className="atraso"><b>{metricas.envios_apos_data_site}</b> enviados APÓS a data limite</span>
+          )}
+        </div>
+      )}
 
       {erro && <div className="estado erro rem-erro">{erro}</div>}
       {mostrarAdmin && role === 'admin' && <AdminPanel onMudou={() => carregar(compAtual)} />}
