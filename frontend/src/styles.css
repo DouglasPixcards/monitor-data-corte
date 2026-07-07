@@ -377,6 +377,15 @@ button, input, select, textarea { font-family: inherit; }
    ========================================================= */
 
 .remessas .controls { margin-top: 0; }
+.comp-nav { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.comp-nav .seta {
+  background: transparent; border: 1px solid var(--border-strong); color: var(--fg-2);
+  width: 34px; height: 38px; border-radius: var(--radius-md); cursor: pointer; font-size: 16px;
+  transition: all var(--motion-fast) var(--ease-std);
+}
+.comp-nav .seta:hover:not(:disabled) { border-color: var(--pc-yellow); color: var(--pc-yellow); }
+.comp-nav .seta:disabled { opacity: .3; cursor: default; }
+.comp-nav .comp-select { min-width: 220px; }
 .rem-erro {
   padding: var(--sp-2) var(--sp-4); background: var(--warning-bg); color: var(--warning);
   border: 1px solid rgba(251, 191, 36, .3); border-radius: var(--radius-md);

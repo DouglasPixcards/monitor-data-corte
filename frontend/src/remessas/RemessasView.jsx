@@ -457,19 +457,45 @@ export default function RemessasView() {
   const oper = role === 'operacoes'
   const cabecalho = oper ? CABECALHO_OPER : CABECALHO_FULL
 
+  // Navegador de competência: setas ‹ › (a lista vem DESC do server) + dropdown por ano.
+  const idxComp = competencias.findIndex((c) => c.competencia === compAtual)
+  const irPara = (delta) => {
+    const alvo = competencias[idxComp + delta]
+    if (alvo) trocarCompetencia(alvo.competencia)
+  }
+  const porAno = useMemo(() => {
+    const grupos = {}
+    for (const c of competencias) {
+      const ano = c.competencia.split('/')[1]
+      ;(grupos[ano] = grupos[ano] || []).push(c)
+    }
+    return Object.entries(grupos).sort((a, b) => Number(b[0]) - Number(a[0]))
+  }, [competencias])
+
   return (
     <div className="remessas">
       <div className="controls">
-        <select className="filtro" value={compAtual}
-                onChange={(e) => trocarCompetencia(e.target.value)} aria-label="Competência">
-          {!competencias.some((c) => c.competencia === compAtual) && compAtual &&
-            <option value={compAtual}>{compAtual}</option>}
-          {competencias.map((c) => (
-            <option key={c.competencia} value={c.competencia}>
-              {c.competencia} · {c.enviados}/{c.total - c.automaticos} enviados
-            </option>
-          ))}
-        </select>
+        <div className="comp-nav">
+          <button className="seta" onClick={() => irPara(1)}
+                  disabled={idxComp < 0 || idxComp >= competencias.length - 1}
+                  title="Competência anterior">‹</button>
+          <select className="filtro comp-select" value={compAtual}
+                  onChange={(e) => trocarCompetencia(e.target.value)} aria-label="Competência">
+            {!competencias.some((c) => c.competencia === compAtual) && compAtual &&
+              <option value={compAtual}>{compAtual}</option>}
+            {porAno.map(([ano, comps]) => (
+              <optgroup key={ano} label={ano}>
+                {comps.map((c) => (
+                  <option key={c.competencia} value={c.competencia}>
+                    {c.competencia} · {c.enviados}/{c.total - c.automaticos} enviados
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <button className="seta" onClick={() => irPara(-1)} disabled={idxComp <= 0}
+                  title="Próxima competência">›</button>
+        </div>
         <input className="busca" type="search" placeholder="Buscar convênio ou código..."
                value={busca} onChange={(e) => setBusca(e.target.value)} />
         {(role === 'admin' || role === 'conciliacao') && (
