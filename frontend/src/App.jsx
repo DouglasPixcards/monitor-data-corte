@@ -249,7 +249,7 @@ function Metricas() {
 const VISTAS_LABEL = { board: 'Board', remessas: 'Remessas', calendario: 'Calendário', metricas: 'Métricas' }
 const VISTAS_POR_PAPEL = {
   admin: ['board', 'remessas', 'calendario', 'metricas'],
-  conciliacao: ['board', 'remessas', 'calendario'],
+  conciliacao: ['board', 'remessas', 'calendario', 'metricas'],  // paridade com admin (exceto banksoft)
   operacoes: ['remessas'],
 }
 

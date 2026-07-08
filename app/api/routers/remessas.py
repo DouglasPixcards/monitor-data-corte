@@ -62,7 +62,7 @@ def listar_registros(_u: UsuarioRow = Depends(usuario_atual)) -> list[dict]:
 
 @router.post("/registros", status_code=201)
 def criar_registro(body: CriarRegistroBody,
-                   admin: UsuarioRow = Depends(require_roles("admin"))) -> dict:
+                   admin: UsuarioRow = Depends(require_roles("admin", "conciliacao"))) -> dict:
     try:
         with session_scope() as session:
             registro = svc.criar_registro(session, body.model_dump(), admin)
@@ -79,7 +79,7 @@ def criar_registro(body: CriarRegistroBody,
 
 @router.patch("/registros/{registro_id}")
 def atualizar_registro(registro_id: str, body: AtualizarRegistroBody,
-                       admin: UsuarioRow = Depends(require_roles("admin"))) -> dict:
+                       admin: UsuarioRow = Depends(require_roles("admin", "conciliacao"))) -> dict:
     try:
         with session_scope() as session:
             registro = svc.atualizar_registro(
@@ -96,7 +96,7 @@ def atualizar_registro(registro_id: str, body: AtualizarRegistroBody,
 
 
 @router.get("/monitor-keys")
-def monitor_keys(_admin: UsuarioRow = Depends(require_roles("admin"))) -> list[dict]:
+def monitor_keys(_admin: UsuarioRow = Depends(require_roles("admin", "conciliacao"))) -> list[dict]:
     with session_scope() as session:
         return svc.monitor_keys_livres(session)
 
@@ -169,7 +169,7 @@ def listar_competencias(_u: UsuarioRow = Depends(usuario_atual)) -> list[dict]:
 
 @router.post("/competencias/{competencia}/abrir")
 def abrir_competencia(competencia: str,
-                      admin: UsuarioRow = Depends(require_roles("admin"))) -> dict:
+                      admin: UsuarioRow = Depends(require_roles("admin", "conciliacao"))) -> dict:
     try:
         with session_scope() as session:
             criados = svc.ensure_ciclos(session, competencia, usuario=admin)

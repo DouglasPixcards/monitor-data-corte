@@ -90,8 +90,17 @@ class AtualizarUsuarioBody(BaseModel):
     password: str | None = Field(default=None, min_length=8, max_length=72)
 
 
+# Conciliação gerencia usuários das EQUIPES, mas nunca cria/edita/promove ADMIN —
+# senão a trava do corte banksoft viraria decorativa (auto-promoção a admin).
+_GESTORES = ("admin", "conciliacao")
+
+
+def _pode_mexer_em_admin(gestor: UsuarioRow) -> bool:
+    return gestor.role == "admin"
+
+
 @router.get("/usuarios")
-def listar_usuarios(_admin: UsuarioRow = Depends(require_roles("admin"))) -> list[dict]:
+def listar_usuarios(_gestor: UsuarioRow = Depends(require_roles(*_GESTORES))) -> list[dict]:
     with session_scope() as session:
         usuarios = session.execute(
             select(UsuarioRow).order_by(UsuarioRow.username)
@@ -101,7 +110,9 @@ def listar_usuarios(_admin: UsuarioRow = Depends(require_roles("admin"))) -> lis
 
 @router.post("/usuarios", status_code=201)
 def criar_usuario(body: CriarUsuarioBody,
-                  _admin: UsuarioRow = Depends(require_roles("admin"))) -> dict:
+                  gestor: UsuarioRow = Depends(require_roles(*_GESTORES))) -> dict:
+    if body.role == "admin" and not _pode_mexer_em_admin(gestor):
+        raise HTTPException(status_code=403, detail="Só admin cria usuários admin.")
     try:
         with session_scope() as session:
             usuario = auth_service.criar_usuario(
@@ -116,13 +127,17 @@ def criar_usuario(body: CriarUsuarioBody,
 
 @router.patch("/usuarios/{usuario_id}")
 def atualizar_usuario(usuario_id: str, body: AtualizarUsuarioBody,
-                      admin: UsuarioRow = Depends(require_roles("admin"))) -> dict:
+                      admin: UsuarioRow = Depends(require_roles(*_GESTORES))) -> dict:
     if body.role is not None and body.role not in auth_service.ROLES:
         raise HTTPException(status_code=422, detail=f"Role inválida: {body.role!r}")
+    if body.role == "admin" and not _pode_mexer_em_admin(admin):
+        raise HTTPException(status_code=403, detail="Só admin promove usuários a admin.")
     with session_scope() as session:
         usuario = session.get(UsuarioRow, usuario_id)
         if usuario is None:
             raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        if usuario.role == "admin" and not _pode_mexer_em_admin(admin):
+            raise HTTPException(status_code=403, detail="Só admin edita usuários admin.")
         # Anti-lockout: nunca desativar/rebaixar o ÚLTIMO admin ativo (seria irrecuperável).
         vai_perder_admin = usuario.role == "admin" and usuario.ativo and (
             body.ativo is False or (body.role is not None and body.role != "admin"))

@@ -102,10 +102,62 @@ def test_login_ok_seta_cookie_httponly():
 
 # ── permissões / CSRF ────────────────────────────────────────────────────────
 
-def test_usuarios_exige_admin_403():
+def test_usuarios_operacoes_403():
     with _remessas_on(), \
          patch("app.services.auth_service.validar_sessao", return_value=_user(role="operacoes")):
         assert client.get("/auth/usuarios").status_code == 403
+
+
+# ── conciliação = admin exceto banksoft (e sem tocar em admins) ───────────────
+
+def test_conciliacao_lista_usuarios_200():
+    scope = MagicMock()
+    sessao = MagicMock()
+    sessao.execute.return_value.scalars.return_value.all.return_value = []
+    scope.return_value.__enter__.return_value = sessao
+    scope.return_value.__exit__.return_value = False
+    with _remessas_on(), \
+         patch("app.services.auth_service.validar_sessao", return_value=_user(role="conciliacao")), \
+         patch("app.api.routers.auth.session_scope", scope):
+        assert client.get("/auth/usuarios").status_code == 200
+
+
+def test_conciliacao_nao_cria_admin_403():
+    # guarda anti-escalação: sem ela, a trava do banksoft seria decorativa
+    with _remessas_on(), \
+         patch("app.services.auth_service.validar_sessao", return_value=_user(role="conciliacao")):
+        resp = client.post("/auth/usuarios", headers=_HDR, json={
+            "username": "novo.admin", "display_name": "Novo",
+            "password": "senha-forte", "role": "admin"})
+    assert resp.status_code == 403
+
+
+def test_conciliacao_nao_edita_admin_403():
+    alvo_admin = UsuarioRow(id="u9", username="chefe", display_name="Chefe",
+                            password_hash="h", role="admin", ativo=True)
+    scope = MagicMock()
+    sessao = MagicMock()
+    sessao.get.return_value = alvo_admin
+    scope.return_value.__enter__.return_value = sessao
+    scope.return_value.__exit__.return_value = False
+    with _remessas_on(), \
+         patch("app.services.auth_service.validar_sessao", return_value=_user(role="conciliacao")), \
+         patch("app.api.routers.auth.session_scope", scope):
+        resp = client.patch("/auth/usuarios/u9", headers=_HDR, json={"ativo": False})
+    assert resp.status_code == 403
+
+
+def test_conciliacao_nao_promove_a_admin_403():
+    with _remessas_on(), \
+         patch("app.services.auth_service.validar_sessao", return_value=_user(role="conciliacao")):
+        resp = client.patch("/auth/usuarios/u2", headers=_HDR, json={"role": "admin"})
+    assert resp.status_code == 403
+
+
+def test_operacoes_nao_acessa_cadastro_403():
+    with _remessas_on(), \
+         patch("app.services.auth_service.validar_sessao", return_value=_user(role="operacoes")):
+        assert client.get("/remessas/monitor-keys").status_code == 403
 
 
 def test_mutacao_sem_header_x_requested_with_403():

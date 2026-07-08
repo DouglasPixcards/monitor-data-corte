@@ -3,7 +3,7 @@ import {
   criarRegistro, criarUsuario, fetchMonitorKeys, fetchRegistros, fetchUsuarios,
   patchRegistro, patchUsuario,
 } from '../lib.js'
-import { ROLE_LABEL } from '../auth.jsx'
+import { ROLE_LABEL, useUser } from '../auth.jsx'
 
 const REGISTRO_VAZIO = {
   cod_empr: '', nome: '', link_portal: '', tipo_desconto: 'remessa',
@@ -12,6 +12,8 @@ const REGISTRO_VAZIO = {
 const USUARIO_VAZIO = { username: '', display_name: '', password: '', role: 'conciliacao' }
 
 export default function AdminPanel({ onMudou }) {
+  const user = useUser()
+  const ehAdmin = user?.role === 'admin'
   const [aba, setAba] = useState('registros')
   const [registros, setRegistros] = useState([])
   const [usuarios, setUsuarios] = useState([])
@@ -144,7 +146,7 @@ export default function AdminPanel({ onMudou }) {
                     onChange={(e) => setNovoUser({ ...novoUser, role: e.target.value })}>
               <option value="conciliacao">Conciliação</option>
               <option value="operacoes">Operações</option>
-              <option value="admin">Admin</option>
+              {ehAdmin && <option value="admin">Admin</option>}
             </select>
             <button className="acao" type="submit">Criar usuário</button>
           </form>
@@ -154,9 +156,11 @@ export default function AdminPanel({ onMudou }) {
                 <b>{u.username}</b>
                 <span>{u.display_name}</span>
                 <em className={`tag role-${u.role}`}>{ROLE_LABEL[u.role] || u.role}</em>
-                <button className="sair" onClick={() => toggleAtivoUsuario(u)}>
-                  {u.ativo ? 'desativar' : 'reativar'}
-                </button>
+                {(ehAdmin || u.role !== 'admin') && (
+                  <button className="sair" onClick={() => toggleAtivoUsuario(u)}>
+                    {u.ativo ? 'desativar' : 'reativar'}
+                  </button>
+                )}
               </div>
             ))}
           </div>

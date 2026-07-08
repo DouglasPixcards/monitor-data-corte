@@ -263,6 +263,7 @@ function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro, onReload }) 
   const escreveConc = role === 'conciliacao' || role === 'admin'
   const escreveOper = role === 'operacoes' || role === 'admin'
   const ehAdmin = role === 'admin'
+  const gerencia = role === 'admin' || role === 'conciliacao'
   const produtos = ciclo.registro.produtos || {}
 
   const codCell = (
@@ -272,9 +273,9 @@ function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro, onReload }) 
   )
   const nomeCell = (
     <td>
-      <span className={`rem-nome ${ehAdmin ? 'clicavel' : ''}`}
-            onClick={ehAdmin ? () => onAbrirAuditoria(ciclo) : undefined}
-            title={ehAdmin ? 'Ver histórico de alterações (auditoria)' : undefined}>
+      <span className={`rem-nome ${gerencia ? 'clicavel' : ''}`}
+            onClick={gerencia ? () => onAbrirAuditoria(ciclo) : undefined}
+            title={gerencia ? 'Ver histórico de alterações (auditoria)' : undefined}>
         {ciclo.registro.nome}
       </span>
       {ciclo.atraso_mes_anterior && (
@@ -586,7 +587,7 @@ export default function RemessasView() {
           <a className="acao" href={`/remessas/export?competencia=${encodeURIComponent(compAtual)}`}
              title="Baixar a planilha da competência">⬇ Excel</a>
         )}
-        {role === 'admin' && (
+        {(role === 'admin' || role === 'conciliacao') && (
           <>
             <button className="acao" onClick={abrirNova}>Abrir competência</button>
             <button className="acao" onClick={() => setMostrarAdmin(!mostrarAdmin)}>
@@ -615,7 +616,7 @@ export default function RemessasView() {
       )}
 
       {erro && <div className="estado erro rem-erro">{erro}</div>}
-      {mostrarAdmin && role === 'admin' && <AdminPanel onMudou={() => carregar(compAtual)} />}
+      {mostrarAdmin && (role === 'admin' || role === 'conciliacao') && <AdminPanel onMudou={() => carregar(compAtual)} />}
 
       {!ciclos && !erro && <div className="estado">Carregando remessas...</div>}
       {ciclos && filtrados.length === 0 && <div className="vazio">Nenhum convênio nesta competência.</div>}
