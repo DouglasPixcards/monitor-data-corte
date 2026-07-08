@@ -277,6 +277,12 @@ function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro, onReload }) 
             title={ehAdmin ? 'Ver histórico de alterações (auditoria)' : undefined}>
         {ciclo.registro.nome}
       </span>
+      {ciclo.atraso_mes_anterior && (
+        <em className="tag alerta-atraso"
+            title="No mês anterior a remessa foi enviada APÓS a data limite — atenção ao prazo deste ciclo">
+          ⚠ atrasou mês passado
+        </em>
+      )}
     </td>
   )
 
@@ -307,11 +313,12 @@ function CicloRow({ ciclo, role, onPatch, onAbrirAuditoria, onErro, onReload }) 
   )
 
   return (
-    <tr>
+    <tr className={ciclo.envio_atrasado ? 'linha-atrasada' : ''}>
       {codCell}
       {nomeCell}
       <td><DataSiteCell ciclo={ciclo} role={role} salvarCampo={salvarCampo} onReload={onReload} onErro={onErro} /></td>
-      <td>
+      <td className={ciclo.envio_atrasado ? 'envio-atrasado' : ''}
+          title={ciclo.envio_atrasado ? 'Remessa enviada APÓS a data limite do site' : undefined}>
         <CellEdit valor={ciclo.data_envio} exibicao={fmtDataISO(ciclo.data_envio)} tipo="date"
                   podeEditar={escreveConc} onSalvar={(v) => salvarCampo('data_envio', v)} />
       </td>

@@ -96,6 +96,19 @@ def competencia_corrente() -> str:
     return f"{hoje.month:02d}/{hoje.year}"
 
 
+def competencia_anterior(competencia: str) -> str:
+    """'07/2026' → '06/2026' (com virada de ano: '01/2026' → '12/2025')."""
+    comp, inicio = parse_competencia(competencia)
+    ano, mes = (inicio.year, inicio.month - 1) if inicio.month > 1 else (inicio.year - 1, 12)
+    return f"{mes:02d}/{ano}"
+
+
+def envio_atrasado(ciclo: CicloRemessaRow) -> bool:
+    """True quando a remessa saiu DEPOIS da data limite do site."""
+    return (ciclo.data_envio is not None and ciclo.data_site is not None
+            and ciclo.data_envio > ciclo.data_site)
+
+
 def ensure_ciclos(session: Session, competencia: str,
                   usuario: UsuarioRow | None = None) -> int:
     """Cria ciclos em branco (idempotente) para todos os registros ativos na competência."""
@@ -206,7 +219,8 @@ def _divergencia(ciclo: CicloRemessaRow) -> dict:
     return {"valor": div_valor, "qtd": div_qtd}
 
 
-def proj_ciclo(ciclo: CicloRemessaRow, registro: ConvenioRegistroRow, role: str) -> dict:
+def proj_ciclo(ciclo: CicloRemessaRow, registro: ConvenioRegistroRow, role: str,
+               atraso_mes_anterior: bool = False) -> dict:
     sugestao = (_iso(ciclo.data_site - timedelta(days=_SUGESTAO_BANKSOFT_DIAS))
                 if ciclo.data_site else None)
     a_coletar = registro.monitor_key is not None and ciclo.data_site is None
@@ -247,6 +261,11 @@ def proj_ciclo(ciclo: CicloRemessaRow, registro: ConvenioRegistroRow, role: str)
         "validado": ciclo.validado,
         "status": status_ciclo(registro, ciclo),
         "divergencia": _divergencia(ciclo),
+        # Envio DEPOIS da data limite do site → destaque na linha. Convênio AUTOMÁTICO
+        # não envia remessa — atraso não se aplica (nem o alerta preventivo).
+        "envio_atrasado": registro.tipo_desconto != "automatico" and envio_atrasado(ciclo),
+        # No mês ANTERIOR o envio saiu atrasado → alerta preventivo neste ciclo.
+        "atraso_mes_anterior": registro.tipo_desconto != "automatico" and atraso_mes_anterior,
     })
     return base
 
@@ -259,7 +278,22 @@ def listar_ciclos(session: Session, competencia: str, role: str) -> list[dict]:
         .where(CicloRemessaRow.competencia == comp)
         .order_by(ConvenioRegistroRow.nome)
     ).all()
-    return [proj_ciclo(c, r, role) for c, r in pares]
+
+    # Quem atrasou no mês anterior (1 query) — alerta preventivo por registro.
+    # Automáticos ficam de fora: não há remessa a enviar.
+    atrasados_anterior: set[str] = set()
+    if role != "operacoes" and pares:
+        for ciclo_ant, reg_ant in session.execute(
+            select(CicloRemessaRow, ConvenioRegistroRow)
+            .join(ConvenioRegistroRow, ConvenioRegistroRow.id == CicloRemessaRow.registro_id)
+            .where(CicloRemessaRow.competencia == competencia_anterior(comp),
+                   ConvenioRegistroRow.tipo_desconto != "automatico")
+        ).all():
+            if envio_atrasado(ciclo_ant):
+                atrasados_anterior.add(ciclo_ant.registro_id)
+
+    return [proj_ciclo(c, r, role, atraso_mes_anterior=(c.registro_id in atrasados_anterior))
+            for c, r in pares]
 
 
 def listar_competencias(session: Session) -> list[dict]:

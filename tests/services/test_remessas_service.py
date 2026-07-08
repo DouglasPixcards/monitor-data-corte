@@ -181,3 +181,43 @@ def test_parse_competencia():
         svc.parse_competencia("13/2026")
     with pytest.raises(ValueError):
         svc.parse_competencia("julho")
+
+
+def test_competencia_anterior():
+    assert svc.competencia_anterior("07/2026") == "06/2026"
+    assert svc.competencia_anterior("01/2026") == "12/2025"   # virada de ano
+
+
+# ── Envio atrasado (após a data limite do site) ───────────────────────────────
+
+def test_envio_atrasado():
+    assert svc.envio_atrasado(_ciclo(data_site=date(2026, 7, 10), data_envio=date(2026, 7, 12))) is True
+    assert svc.envio_atrasado(_ciclo(data_site=date(2026, 7, 10), data_envio=date(2026, 7, 10))) is False
+    assert svc.envio_atrasado(_ciclo(data_site=date(2026, 7, 10), data_envio=date(2026, 7, 8))) is False
+    assert svc.envio_atrasado(_ciclo(data_site=None, data_envio=date(2026, 7, 8))) is False
+    assert svc.envio_atrasado(_ciclo(data_envio=None)) is False
+
+
+def test_proj_expoe_envio_atrasado_e_alerta_mes_anterior():
+    c = _ciclo(data_site=date(2026, 7, 10), data_envio=date(2026, 7, 12))
+    p = svc.proj_ciclo(c, _registro(), "conciliacao", atraso_mes_anterior=True)
+    assert p["envio_atrasado"] is True
+    assert p["atraso_mes_anterior"] is True
+    p2 = svc.proj_ciclo(_ciclo(data_envio=date(2026, 7, 8), data_site=date(2026, 7, 10)),
+                        _registro(), "admin")
+    assert p2["envio_atrasado"] is False
+    assert p2["atraso_mes_anterior"] is False
+
+
+def test_projecao_operacoes_nao_expoe_flags_de_envio():
+    c = _ciclo(data_site=date(2026, 7, 10), data_envio=date(2026, 7, 12))
+    p = svc.proj_ciclo(c, _registro(), "operacoes", atraso_mes_anterior=True)
+    assert "envio_atrasado" not in p and "atraso_mes_anterior" not in p
+
+
+def test_automatico_nunca_marca_atraso():
+    # automático não envia remessa → atraso/alerta não se aplicam (caso Paraíba)
+    c = _ciclo(data_site=date(2026, 7, 10), data_envio=date(2026, 7, 12))
+    p = svc.proj_ciclo(c, _registro(tipo="automatico"), "conciliacao", atraso_mes_anterior=True)
+    assert p["envio_atrasado"] is False
+    assert p["atraso_mes_anterior"] is False

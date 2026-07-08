@@ -471,6 +471,13 @@ button, input, select, textarea { font-family: inherit; }
 .banksoft { display: inline-flex; align-items: center; }
 
 .tag.a-coletar { background: var(--warning-bg); color: var(--warning); margin-left: 0; }
+
+/* Envio APÓS a data limite: linha em destaque + alerta preventivo no mês seguinte */
+.rem-table tbody tr.linha-atrasada td { background: var(--danger-bg); }
+.rem-table tbody tr.linha-atrasada:hover td { background: rgba(248, 113, 113, 0.22); }
+.rem-table tbody tr.linha-atrasada td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.rem-table td.envio-atrasado .cel { color: var(--danger); font-weight: 700; }
+.tag.alerta-atraso { background: var(--warning-bg); color: var(--warning); white-space: nowrap; }
 .a-coletar-wrap { display: inline-flex; align-items: center; gap: 4px; }
 .tag.st-enviado { background: var(--success-bg); color: var(--success); margin-left: 0; }
 .tag.st-pendente { background: var(--warning-bg); color: var(--warning); margin-left: 0; }
