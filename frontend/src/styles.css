@@ -415,6 +415,10 @@ button, input, select, textarea { font-family: inherit; }
   white-space: nowrap;
 }
 .rem-table thead th.num { text-align: right; }
+.rem-table thead th.ordenavel { cursor: pointer; user-select: none; }
+.rem-table thead th.ordenavel:hover { color: var(--pc-yellow); }
+.rem-table thead th.ordem-ativa { color: var(--pc-yellow); }
+.ordem-seta { margin-left: 4px; font-size: 9px; }
 .rem-table tbody td {
   padding: 8px 10px; border-bottom: 1px solid var(--border);
   font-size: var(--fs-body-sm); vertical-align: middle; white-space: nowrap; color: var(--fg-2);

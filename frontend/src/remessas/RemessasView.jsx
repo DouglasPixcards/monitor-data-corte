@@ -391,13 +391,59 @@ function AuditoriaModal({ ciclo, onFechar }) {
 }
 
 // ── Vista principal ───────────────────────────────────────────────────────────
+// [rótulo, classe, chave de ordenação (cabeçalho clicável quando presente)]
 const CABECALHO_FULL = [
-  ['Cod'], ['Convênio'], ['Data site'], ['Data envio'],
-  ['Valor enviado', 'num'], ['Qtd', 'num'], ['Status'],
+  ['Cod', '', 'cod'], ['Convênio', '', 'nome'], ['Data site', '', 'data_site'],
+  ['Data envio', '', 'data_envio'],
+  ['Valor enviado', 'num', 'valor'], ['Qtd', 'num', 'qtd'], ['Status', '', 'status'],
   ['Crédito R$', 'num'], ['Qtd', 'num'], ['Benefício R$', 'num'], ['Qtd', 'num'],
-  ['Compras R$', 'num'], ['Qtd', 'num'], ['Corte banksoft'], ['Val.'], ['Observação'],
+  ['Compras R$', 'num'], ['Qtd', 'num'], ['Corte banksoft', '', 'banksoft'],
+  ['Val.', '', 'validado'], ['Observação'],
 ]
-const CABECALHO_OPER = [['Cod'], ['Convênio'], ['Data site'], ['Corte banksoft']]
+const CABECALHO_OPER = [
+  ['Cod', '', 'cod'], ['Convênio', '', 'nome'], ['Data site', '', 'data_site'],
+  ['Corte banksoft', '', 'banksoft'],
+]
+
+// Filtros rápidos (visões operacionais) — reduzidos pra Operações, que não vê envio.
+const FILTROS = {
+  todos: { rotulo: 'Todos', fn: () => true },
+  pendentes: { rotulo: 'Pendentes', fn: (c) => c.status === 'pendente' },
+  enviados: { rotulo: 'Enviados', fn: (c) => c.status === 'enviado' },
+  automaticos: { rotulo: 'Automáticos', fn: (c) => c.status === 'automatico' },
+  atrasados: { rotulo: '🔴 Enviados após a data', fn: (c) => c.envio_atrasado },
+  alerta: { rotulo: '⚠ Atrasaram mês passado', fn: (c) => c.atraso_mes_anterior },
+  a_coletar: { rotulo: 'A coletar', fn: (c) => c.a_coletar },
+  sem_banksoft: { rotulo: 'Sem corte banksoft', fn: (c) => !c.corte_banksoft },
+  nao_validados: { rotulo: 'Não validados', fn: (c) => !c.validado && c.status !== 'automatico' },
+}
+const FILTROS_OPER = ['todos', 'a_coletar', 'sem_banksoft']
+
+// Extratores de valor pra ordenação (null/vazio sempre por último).
+const ORDEM_VALOR = {
+  cod: (c) => c.registro.cod_empr,
+  nome: (c) => c.registro.nome.toLowerCase(),
+  data_site: (c) => c.data_site,
+  data_envio: (c) => c.data_envio,
+  valor: (c) => (c.valor_enviado != null ? Number(c.valor_enviado) : null),
+  qtd: (c) => c.qtd_contratos,
+  status: (c) => c.status,
+  banksoft: (c) => c.corte_banksoft,
+  validado: (c) => (c.validado ? 1 : 0),
+}
+
+function ordenar(lista, campo, asc) {
+  const valor = ORDEM_VALOR[campo]
+  if (!valor) return lista
+  return [...lista].sort((a, b) => {
+    const va = valor(a), vb = valor(b)
+    if (va == null || va === '') return 1      // vazios sempre no fim
+    if (vb == null || vb === '') return -1
+    if (va < vb) return asc ? -1 : 1
+    if (va > vb) return asc ? 1 : -1
+    return 0
+  })
+}
 
 export default function RemessasView() {
   const user = useUser()
@@ -406,6 +452,8 @@ export default function RemessasView() {
   const [competencias, setCompetencias] = useState([])
   const [ciclos, setCiclos] = useState(null)
   const [busca, setBusca] = useState('')
+  const [filtro, setFiltro] = useState('todos')
+  const [ordem, setOrdem] = useState({ campo: 'nome', asc: true })
   const [erro, setErro] = useState(null)
   const [auditoriaDe, setAuditoriaDe] = useState(null)
   const [mostrarAdmin, setMostrarAdmin] = useState(false)
@@ -455,10 +503,20 @@ export default function RemessasView() {
   const filtrados = useMemo(() => {
     if (!ciclos) return null
     const b = busca.trim().toLowerCase()
-    if (!b) return ciclos
-    return ciclos.filter((c) =>
-      c.registro.nome.toLowerCase().includes(b) || String(c.registro.cod_empr).includes(b))
-  }, [ciclos, busca])
+    let lista = ciclos
+    if (b) {
+      lista = lista.filter((c) =>
+        c.registro.nome.toLowerCase().includes(b) || String(c.registro.cod_empr).includes(b))
+    }
+    const f = FILTROS[filtro]
+    if (f && filtro !== 'todos') lista = lista.filter(f.fn)
+    return ordenar(lista, ordem.campo, ordem.asc)
+  }, [ciclos, busca, filtro, ordem])
+
+  const clicarOrdem = (campo) => {
+    if (!campo) return
+    setOrdem((o) => (o.campo === campo ? { campo, asc: !o.asc } : { campo, asc: true }))
+  }
 
   const compAtual = competencia || (ciclos && ciclos[0]?.competencia) || ''
   const oper = role === 'operacoes'
@@ -505,6 +563,15 @@ export default function RemessasView() {
         </div>
         <input className="busca" type="search" placeholder="Buscar convênio ou código..."
                value={busca} onChange={(e) => setBusca(e.target.value)} />
+        <select className="filtro" value={filtro} onChange={(e) => setFiltro(e.target.value)}
+                aria-label="Filtro rápido">
+          {(oper ? FILTROS_OPER : Object.keys(FILTROS)).map((k) => (
+            <option key={k} value={k}>{FILTROS[k].rotulo}</option>
+          ))}
+        </select>
+        {ciclos && filtrados && (filtro !== 'todos' || busca) && (
+          <span className="contador">{filtrados.length} de {ciclos.length}</span>
+        )}
         {(role === 'admin' || role === 'conciliacao') && (
           <button className="acao" onClick={async () => {
             try {
@@ -557,8 +624,16 @@ export default function RemessasView() {
           <table className="rem-table">
             <thead>
               <tr>
-                {cabecalho.map(([rotulo, cls], i) => (
-                  <th key={i} className={cls || ''}>{rotulo}</th>
+                {cabecalho.map(([rotulo, cls, sortKey], i) => (
+                  <th key={i}
+                      className={`${cls || ''} ${sortKey ? 'ordenavel' : ''} ${ordem.campo === sortKey ? 'ordem-ativa' : ''}`}
+                      onClick={sortKey ? () => clicarOrdem(sortKey) : undefined}
+                      title={sortKey ? 'Clique para ordenar' : undefined}>
+                    {rotulo}
+                    {ordem.campo === sortKey && sortKey && (
+                      <span className="ordem-seta">{ordem.asc ? '▲' : '▼'}</span>
+                    )}
+                  </th>
                 ))}
               </tr>
             </thead>
