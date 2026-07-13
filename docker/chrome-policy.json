@@ -1,0 +1,7 @@
+{
+  "AutoSelectCertificateForUrls": [
+    "{\"pattern\":\"https://www.faciltecnologia.com.br\",\"filter\":{\"ISSUER\":{\"CN\":\"AC SOLUTI Multipla v5\"}}}",
+    "{\"pattern\":\"https://portaldoconsignado.mt.gov.br\",\"filter\":{\"ISSUER\":{\"CN\":\"AC SOLUTI Multipla v5\"}}}",
+    "{\"pattern\":\"https://consigfacil.sead.pi.gov.br\",\"filter\":{\"ISSUER\":{\"CN\":\"AC SOLUTI Multipla v5\"}}}"
+  ]
+}

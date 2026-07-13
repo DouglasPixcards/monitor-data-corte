@@ -1,0 +1,76 @@
+# Compose mínimo da V1: Postgres + migrations + runner agendado + API de consulta.
+#
+# Subir tudo:        docker compose up -d --build
+# Coleta imediata:   docker compose run --rm -e RUN_ON_START=true runner
+# Inspecionar banco: docker compose exec db psql -U monitor -d monitor
+
+x-app-env: &app-env
+  STORAGE_BACKEND: postgres
+  STORAGE_PATH: /app/data
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-monitor}:${POSTGRES_PASSWORD:-monitor}@db:5432/${POSTGRES_DB:-monitor}
+  HEADLESS: "True"
+  CHROME_CHANNEL: chrome
+
+x-app: &app
+  build: .
+  env_file: .env
+  environment: *app-env
+  depends_on:
+    db:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+  volumes:
+    - rundata:/app/data
+    # Certificado de cliente (mTLS) do ConsigFácil. Coloque o arquivo em
+    # secrets/consigfacil.p12 no host; o entrypoint o importa no NSS db.
+    - ./secrets:/run/secrets:ro
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-monitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monitor}
+      POSTGRES_DB: ${POSTGRES_DB:-monitor}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-monitor} -d ${POSTGRES_DB:-monitor}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  # One-shot: aplica as migrations e encerra. runner/api dependem da conclusão.
+  migrate:
+    build: .
+    env_file: .env
+    environment:
+      STORAGE_BACKEND: postgres
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-monitor}:${POSTGRES_PASSWORD:-monitor}@db:5432/${POSTGRES_DB:-monitor}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  # Serviço que agenda e roda a coleta diária (retry paralelo + known_failure).
+  runner:
+    <<: *app
+    command: ["python", "scripts/run_scheduler_service.py"]
+
+  # API de consulta do histórico no Postgres. Não agenda (COLETA_HORARIO vazio).
+  api:
+    <<: *app
+    environment:
+      <<: *app-env
+      COLETA_HORARIO: ""
+    command: ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:
+  rundata:

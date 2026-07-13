@@ -1,0 +1,31 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Ambiente / segredos
+.env
+.venv/
+venv/
+env/
+
+# Dados locais e diagnósticos (não vão para a imagem)
+data/
+*.png
+*.log
+
+# Frontend: node_modules e build são gerados no estágio Node do Dockerfile
+frontend/node_modules/
+frontend/dist/
+
+# Caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Docs (não necessárias em runtime)
+docs/
+README.md
