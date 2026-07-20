@@ -74,10 +74,21 @@ class BaseScraper(ABC):
                 headless=self.headless,
                 channel=self.channel,
             )
-            self.context = self.browser.new_context()
+            self.context = self.browser.new_context(
+                user_agent=self._user_agent_headless())
             self.page = self.context.new_page()
 
         self.page.set_default_timeout(self.timeout)
+
+    def _user_agent_headless(self) -> str | None:
+        """UA de Chrome comum quando headless. O modo headless anuncia
+        "HeadlessChrome" no User-Agent e portais com WAF (ex.: Consignet)
+        respondem 403 antes de servir a página. Mantém a versão real do
+        engine; None = UA nativo (headful)."""
+        if not self.headless or self.browser is None:
+            return None
+        return ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                f"(KHTML, like Gecko) Chrome/{self.browser.version} Safari/537.36")
 
     def stop(self) -> None:
         try:
