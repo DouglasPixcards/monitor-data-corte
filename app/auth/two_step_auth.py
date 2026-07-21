@@ -99,5 +99,13 @@ class TwoStepAuthStrategy(BaseAuthStrategy):
         submit2 = self._locator(page, "step2_submit")
         self._clicar_quando_habilitar(page, submit2, "etapa 2", timeout)
 
-        page.wait_for_load_state("networkidle", timeout=timeout)
+        # networkidle é MELHOR-ESFORÇO: o portal pode nunca ficar ocioso (o
+        # ConsigNet pós-deploy de 07/2026 carrega chat Freshworks + GTM que
+        # fazem tráfego contínuo) e estourar o timeout cheio JÁ LOGADO. Cap
+        # curto e segue — o pós-login é validado pelos callers
+        # (wait_for_url/validate_access), mesmo idiom do user_pass_auth.
+        try:
+            page.wait_for_load_state("networkidle", timeout=min(timeout, 30_000))
+        except Exception:
+            logger.debug("[TwoStepAuth] networkidle não atingido — seguindo. URL: %s", page.url)
         logger.info("[TwoStepAuth] Autenticação concluída. URL: %s", page.url)

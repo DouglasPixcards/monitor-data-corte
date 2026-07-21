@@ -161,6 +161,32 @@ def test_ordem_completa_das_etapas(monkeypatch):
             < i_pwd_visible < i_pwd_type < i_login_enabled < i_login_click)
 
 
+def test_networkidle_que_nunca_ocorre_nao_derruba_o_login(monkeypatch):
+    """Portal com widgets de chat/analytics nunca fica ocioso (ConsigNet pós-
+    deploy 07/2026): o timeout do networkidle deve ser engolido — o login já
+    aconteceu e quem valida o pós-login são os callers."""
+    from playwright.sync_api import TimeoutError as PWTimeout
+
+    rec = _Rec()
+    page = _FakePage(rec)
+
+    def _networkidle_estoura(state, timeout=None):
+        rec.events.append(("wait_for_load_state", state, timeout))
+        raise PWTimeout("Timeout 30000ms exceeded.")
+
+    page.wait_for_load_state = _networkidle_estoura
+    monkeypatch.setattr("app.auth.two_step_auth.expect", _fake_expect_factory(rec))
+    strat = TwoStepAuthStrategy(
+        "user123", "secret456", SELECTORS,
+        key_delay_ms=1, blur_settle_ms=7, recaptcha_settle_ms=11, enable_timeout_ms=4000,
+    )
+    strat.authenticate(page, "https://portal.local/auth/login", timeout=180_000)  # não levanta
+
+    # E o cap: mesmo com timeout global de 180s, networkidle espera no máx. 30s.
+    chamada = next(e for e in rec.events if e[0] == "wait_for_load_state")
+    assert chamada[2] == 30_000
+
+
 # ───────────────────── Camada B: integração HTML local ──────────────────────
 
 _FIXTURE_HTML = """<!doctype html>
