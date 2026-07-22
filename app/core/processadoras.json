@@ -120,9 +120,7 @@
     "belterra": {
       "nome": "Belterra",
       "processadora": "consigfacil",
-      "slug": "belterra",
-      "known_failure": true,
-      "known_failure_reason": "Certificado digital rejeitado pelo portal (falha externa permanente)"
+      "slug": "belterra"
     },
     "maranhao": {
       "nome": "Maranhão",
