@@ -11,7 +11,7 @@ from app.scrapers.declarativo import (
     validar_acesso,
     valor_opcional_apos_separador,
 )
-from app.scrapers.consigfacil.scraper import ConsigFacilScraper
+from app.scrapers.consigfacil.scraper import ConsigFacilScraper, _CARD_DATAS
 from app.scrapers.konexia.scraper import KonexiaScraper
 from app.scrapers.proconsig.scraper import ProconsigScraper
 
@@ -226,17 +226,35 @@ def test_proconsig_collect_usa_helpers():
     assert sc.collect() == [{"data_corte": "10/05/2026", "folha": None, "mes_atual": "05/2026"}]
 
 
+def _card_datas(linhas):
+    """Card 'Datas de Fechamento' contendo a tabela — espelha o novo seletor
+    ancorado (`.card:has(.card-header:has-text('Datas de Fechamento')) table`)."""
+    card = _Loc(count=1)
+    card._filhos = {"table": _tabela(linhas, linhas_seletor="tbody tr")}
+    return card
+
+
 def test_consigfacil_collect_tabela_pula_vazia():
     page = _Page(
         url="https://x/pagina_consignatario.php",  # consignatario → sem navegação
-        locators={"table.table.table-consig-info": _tabela([
+        locators={_CARD_DATAS: _card_datas([
             ["Folha A", "05/2026", "10/05/2026"],
             ["", "", ""],  # linha vazia → pulada
-        ], linhas_seletor="tbody tr")},
+        ])},
     )
     sc = ConsigFacilScraper({}, {"processadora": "consigfacil"}, object())
     sc.page = page
     assert sc.collect() == [{"folha": "Folha A", "mes_atual": "05/2026", "data_corte": "10/05/2026"}]
+
+
+def test_consigfacil_secao_datas_ausente_falha_sem_dado():
+    # Perfil sem 'Datas de Fechamento' (só Mensagens) → NÃO inventa data.
+    page = _Page(url="https://x/pagina_consignatario.php", locators={})
+    sc = ConsigFacilScraper({}, {"processadora": "consigfacil"}, object())
+    sc.page = page
+    with pytest.raises(CollectionError) as ei:
+        sc.collect()
+    assert ei.value.categoria == "sem_dado"
 
 
 def test_consigfacil_validate_fail_closed():
